@@ -555,7 +555,7 @@ class PseudoTcp
       LAST_PROPERTY
     };
 
-
+/*
     static void pseudo_tcp_socket_get_property (GObject *object, guint property_id,
         GValue *value,  GParamSpec *pspec);
     static void pseudo_tcp_socket_set_property (GObject *object, guint property_id,
@@ -585,7 +585,7 @@ class PseudoTcp
     static void set_state_established (PseudoTcpSocket *self);
     static void set_state_closed (PseudoTcpSocket *self, uint err);
 
-    static const gchar *pseudo_tcp_state_get_name (PseudoTcpState state);
+    static const string pseudo_tcp_state_get_name (PseudoTcpState state);
     static bool pseudo_tcp_state_has_sent_fin (PseudoTcpState state);
     static bool pseudo_tcp_state_has_received_fin (PseudoTcpState state);
     static bool pseudo_tcp_state_has_received_fin_ack (PseudoTcpState state);
@@ -597,7 +597,7 @@ class PseudoTcp
       if (debug_level >= level)                                             \
         g_log (level == PSEUDO_TCP_DEBUG_NORMAL ? "libnice-pseudotcp" : "libnice-pseudotcp-verbose", G_LOG_LEVEL_DEBUG, "PseudoTcpSocket %p %s: " fmt, \
             self, pseudo_tcp_state_get_name (self->priv->state), ## __VA_ARGS__)
-
+*/
     void
     pseudo_tcp_set_debug_level (PseudoTcpDebugLevel level)
     {
@@ -2542,7 +2542,7 @@ class PseudoTcp
     }
 
     /* State names are capitalised and formatted as in RFC 793. */
-    static const gchar *
+    static const string
     pseudo_tcp_state_get_name (PseudoTcpState state)
     {
       switch (state) {
