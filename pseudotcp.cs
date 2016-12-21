@@ -471,6 +471,72 @@ class PseudoTcp
       CLOSEDOWN_REMOTE
     }
 
+    /**
+     * PseudoTcpState:
+     * @TCP_LISTEN: The socket's initial state. The socket isn't connected and is
+     * listening for an incoming connection
+     * @TCP_SYN_SENT: The socket has sent a connection request (SYN) packet and is
+     * waiting for an answer
+     * @TCP_SYN_RECEIVED: The socket has received a connection request (SYN) packet.
+     * @TCP_ESTABLISHED: The socket is connected
+     * @TCP_CLOSED: The socket has been closed
+     * @TCP_FIN_WAIT_1: The socket has been closed locally but not remotely
+     * (Since: 0.1.8)
+     * @TCP_FIN_WAIT_2: The socket has been closed locally but not remotely
+     * (Since: 0.1.8)
+     * @TCP_CLOSING: The socket has been closed locally and remotely
+     * (Since: 0.1.8)
+     * @TCP_TIME_WAIT: The socket has been closed locally and remotely
+     * (Since: 0.1.8)
+     * @TCP_CLOSE_WAIT: The socket has been closed remotely but not locally
+     * (Since: 0.1.8)
+     * @TCP_LAST_ACK: The socket has been closed locally and remotely
+     * (Since: 0.1.8)
+     *
+     * An enum representing the state of the #PseudoTcpSocket. These states
+     * correspond to the TCP states in RFC 793.
+     * <para> See also: #PseudoTcpSocket:state </para>
+     *
+     * Since: 0.0.11
+     */
+    enum PseudoTcpState{
+      TCP_LISTEN,
+      TCP_SYN_SENT,
+      TCP_SYN_RECEIVED,
+      TCP_ESTABLISHED,
+      TCP_CLOSED,
+      TCP_FIN_WAIT_1,
+      TCP_FIN_WAIT_2,
+      TCP_CLOSING,
+      TCP_TIME_WAIT,
+      TCP_CLOSE_WAIT,
+      TCP_LAST_ACK,
+    }
+
+    /**
+        * PseudoTcpCallbacks:
+        * @user_data: A user defined pointer to be passed to the callbacks
+        * @PseudoTcpOpened: The #PseudoTcpSocket is now connected
+        * @PseudoTcpReadable: The socket is readable
+        * @PseudoTcpWritable: The socket is writable
+        * @PseudoTcpClosed: The socket was closed (both sides)
+        * @WritePacket: This callback is called when the socket needs to send data.
+        *
+        * A structure containing callbacks functions that will be called by the
+        * #PseudoTcpSocket when some events happen.
+        * <para> See also: #PseudoTcpWriteResult </para>
+        *
+        * Since: 0.0.11
+        */
+    struct PseudoTcpCallbacks{
+        gpointer user_data;
+        void  (*PseudoTcpOpened) (PseudoTcpSocket *tcp, gpointer data);
+        void  (*PseudoTcpReadable) (PseudoTcpSocket *tcp, gpointer data);
+        void  (*PseudoTcpWritable) (PseudoTcpSocket *tcp, gpointer data);
+        void  (*PseudoTcpClosed) (PseudoTcpSocket *tcp, guint32 error, gpointer data);
+        PseudoTcpWriteResult (*WritePacket) (PseudoTcpSocket *tcp,
+            const gchar * buffer, guint32 len, gpointer data);
+    }
 
     struct PseudoTcpSocketPrivate {
       PseudoTcpCallbacks callbacks;
