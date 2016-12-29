@@ -81,7 +81,14 @@ using System;
 using System.Collections.Generic;
 
 using size_t = System.UInt32;
-using gint = System.Int64;
+using gint = System.Int32;
+using gint32 = System.Int32;
+using guint16 = System.UInt16;
+using guint32 = System.UInt32;
+using guint64 = System.UInt64;
+using gboolean = System.Boolean;
+using guint8 = System.Byte;
+using gsize = System.UInt32; // it should be 64 for 64 bit platforms...
 
 class PseudoTcp
 {
@@ -150,7 +157,7 @@ class PseudoTcp
     const int ECONNRESET = 104;       /* Connection reset by peer */
 
     // Standard MTUs
-    const ushort[] PACKET_MAXIMUMS = new ushort[]{
+    const guint16[] PACKET_MAXIMUMS = new guint16[]{
       65535,    // Theoretical maximum, Hyperchannel
       32000,    // Nothing
       17914,    // 16Mb IBM Token Ring
@@ -285,14 +292,14 @@ class PseudoTcp
     #  define max(first, second) ((first) > (second) ? (first) : (second))
     #endif*/
 
-    static uint
-    bound(uint lower, uint middle, uint upper)
+    static guint32
+    bound(guint32 lower, guint32 middle, guint32 upper)
     {
        return Math.Min(Math.Max(lower, middle), upper);
     }
 
-    static bool
-    time_is_between(uint later, uint middle, uint earlier)
+    static gboolean
+    time_is_between(guint32 later, guint32 middle, guint32 earlier)
     {
       if (earlier <= later) {
         return ((earlier <= middle) && (middle <= later));
@@ -301,22 +308,25 @@ class PseudoTcp
       }
     }
 
-    static int
-    time_diff(uint later, uint earlier)
+    static gint32
+    time_diff(guint32 later, guint32 earlier)
     {
-      uint LAST = 0xFFFFFFFF;
-      uint HALF = 0x80000000;
+      guint32 LAST = 0xFFFFFFFF;
+      guint32 HALF = 0x80000000;
+
+#warning originally all conversions cast to "long" in C
+
       if (time_is_between(earlier + HALF, later, earlier)) {
         if (earlier <= later) {
-          return (int)(later - earlier);
+          return (gint32) (later - earlier);
         } else {
-          return (int)(later + (LAST - earlier) + 1);
+          return (gint32)(later + (LAST - earlier) + 1);
         }
       } else {
         if (later <= earlier) {
-          return -(int) (earlier - later);
+          return (gint32)(- (earlier - later));
         } else {
-          return -(int)(earlier + (LAST - later) + 1);
+          return (gint32)(-(earlier + (LAST - later) + 1));
         }
       }
     }
@@ -327,15 +337,15 @@ class PseudoTcp
 
 
     class PseudoTcpFifo{
-      internal byte[] buffer;
-      internal long buffer_length;
-      internal long data_length;
-      internal long read_position;
+      internal guint8[] buffer;
+      internal gsize buffer_length;
+      internal gsize data_length;
+      internal gsize read_position;
     }
 
 
     static void
-    pseudo_tcp_fifo_init (PseudoTcpFifo b, long size)
+    pseudo_tcp_fifo_init(PseudoTcpFifo b, gsize size)
     {
       b.buffer = new byte[size];
       b.buffer_length = size;
@@ -353,29 +363,29 @@ class PseudoTcp
       b.buffer_length = 0;
     }
 
-    static long
+    static gsize
     pseudo_tcp_fifo_get_buffered (PseudoTcpFifo b)
     {
       return b.data_length;
     }
 
-    static void memcpy(byte[] dst, long dstPos, byte[] src, long srcPos, long size)
+    static void memcpy(byte[] dst, gsize dstPos, byte[] src, gsize srcPos, gsize size)
     {
         Buffer.BlockCopy(src, (int) srcPos, dst, (int) dstPos, (int)size);
     }
 
-    static bool
-    pseudo_tcp_fifo_set_capacity (PseudoTcpFifo b, long size)
+    static gboolean
+    pseudo_tcp_fifo_set_capacity(PseudoTcpFifo b, gsize size)
     {
       if (b.data_length > size)
         return false;
 
       if (size != b.data_length) {
-        byte[] buffer = new byte[size];
-        long copy = b.data_length;
-        long tail_copy = Math.Min (copy, b.buffer_length - b.read_position);
+        guint8[] buffer = new guint8[size];
+        gsize copy = b.data_length;
+        gsize tail_copy = Math.Min(copy, b.buffer_length - b.read_position);
 
-        memcpy (buffer, 0, b.buffer, b.read_position, (int) tail_copy);
+        memcpy (buffer, 0, b.buffer, b.read_position, tail_copy);
         memcpy (buffer, tail_copy, b.buffer, 0, copy - tail_copy);
         //g_slice_free1 (b.buffer_length, b.buffer);
 
@@ -396,7 +406,7 @@ class PseudoTcp
     }
 
     static void
-    pseudo_tcp_fifo_consume_read_data (PseudoTcpFifo b, long size)
+    pseudo_tcp_fifo_consume_read_data(PseudoTcpFifo b, gsize size)
     {
       g_assert (size <= b.data_length);
 
@@ -405,27 +415,27 @@ class PseudoTcp
     }
 
     static void
-    pseudo_tcp_fifo_consume_write_buffer (PseudoTcpFifo b, long size)
+    pseudo_tcp_fifo_consume_write_buffer(PseudoTcpFifo b, gsize size)
     {
       g_assert (size <= b.buffer_length - b.data_length);
 
       b.data_length += size;
     }
 
-    static long
+    static gsize
     pseudo_tcp_fifo_get_write_remaining (PseudoTcpFifo b)
     {
       return b.buffer_length - b.data_length;
     }
 
-    static long
-    pseudo_tcp_fifo_read_offset (PseudoTcpFifo b, byte[] buffer, int bufferPos, long bytes,
-        long offset)
+    static gsize
+    pseudo_tcp_fifo_read_offset (PseudoTcpFifo b, byte[] buffer, gsize bufferPos, gsize bytes,
+        gsize offset)
     {
-      long available = b.data_length - offset;
-      long read_position = (b.read_position + offset) % b.buffer_length;
-      long copy = Math.Min (bytes, available);
-      long tail_copy = Math.Min(copy, b.buffer_length - read_position);
+      gsize available = b.data_length - offset;
+      gsize read_position = (b.read_position + offset) % b.buffer_length;
+      gsize copy = Math.Min (bytes, available);
+      gsize tail_copy = Math.Min(copy, b.buffer_length - read_position);
 
       /* EOS */
       if (offset >= b.data_length)
@@ -437,15 +447,15 @@ class PseudoTcp
       return copy;
     }
 
-    static long
+    static gsize
     pseudo_tcp_fifo_write_offset (PseudoTcpFifo b, byte[] buffer,
-        long bytes, long offset)
+        gsize bytes, gsize offset)
     {
-      long available = b.buffer_length - b.data_length - offset;
-      long write_position = (b.read_position + b.data_length + offset)
+      gsize available = b.buffer_length - b.data_length - offset;
+      gsize write_position = (b.read_position + b.data_length + offset)
           % b.buffer_length;
-      long copy = Math.Min (bytes, available);
-      long tail_copy = Math.Min(copy, b.buffer_length - write_position);
+      gsize copy = Math.Min (bytes, available);
+      gsize tail_copy = Math.Min(copy, b.buffer_length - write_position);
 
       if (b.data_length + offset >= b.buffer_length) {
         return 0;
@@ -457,10 +467,10 @@ class PseudoTcp
       return copy;
     }
 
-    static long
-    pseudo_tcp_fifo_read (PseudoTcpFifo b, byte[] buffer, long bytes)
+    static gsize
+    pseudo_tcp_fifo_read (PseudoTcpFifo b, byte[] buffer, gsize bytes)
     {
-      long copy;
+      gsize copy;
 
       copy = pseudo_tcp_fifo_read_offset (b, buffer, 0, bytes, 0);
 
@@ -470,10 +480,10 @@ class PseudoTcp
       return copy;
     }
 
-    static long
-    pseudo_tcp_fifo_write (PseudoTcpFifo b, byte[] buffer, long bytes)
+    static gsize
+    pseudo_tcp_fifo_write (PseudoTcpFifo b, byte[] buffer, gsize bytes)
     {
-      long copy;
+      gsize copy;
 
       copy = pseudo_tcp_fifo_write_offset (b, buffer, bytes, 0);
       b.data_length += copy;
@@ -503,22 +513,22 @@ class PseudoTcp
     }
 
     class Segment{
-      internal uint conv, seq, ack;
+      internal guint32 conv, seq, ack;
       internal TcpFlags flags;
-      internal ushort wnd;
+      internal guint16 wnd;
       internal byte[] data;
-      internal uint len;
-      internal uint tsval, tsecr;
+      internal guint32 len;
+      internal guint32 tsval, tsecr;
     }
 
     class SSegment{
-      internal uint seq, len;
-      internal byte xmit;
+      internal guint32 seq, len;
+      internal guint8 xmit;
       internal TcpFlags flags;
     }
 
     class RSegment{
-      internal uint seq, len;
+      internal guint32 seq, len;
     }
 
     /**
@@ -636,64 +646,64 @@ class PseudoTcp
       internal PseudoTcpCallbacks callbacks;
 
       internal Shutdown shutdown;  /* only used if !support_fin_ack */
-      internal bool shutdown_reads;
-      internal int error;
+      internal gboolean shutdown_reads;
+      internal gint error;
 
       // TCB data
       internal PseudoTcpState state;
-      internal uint conv;
-      internal bool bReadEnable, bWriteEnable, bOutgoing;
-      internal uint last_traffic;
+      internal guint32 conv;
+      internal gboolean bReadEnable, bWriteEnable, bOutgoing;
+      internal guint32 last_traffic;
 
       // Incoming data
       internal List<RSegment> rlist;
-      internal uint rbuf_len, rcv_nxt, rcv_wnd, lastrecv;
-      internal byte rwnd_scale; // Window scale factor
+      internal guint32 rbuf_len, rcv_nxt, rcv_wnd, lastrecv;
+      internal guint8 rwnd_scale; // Window scale factor
       internal PseudoTcpFifo rbuf;
-      internal uint rcv_fin;  /* sequence number of the received FIN octet, or 0 */
+      internal guint32 rcv_fin;  /* sequence number of the received FIN octet, or 0 */
 
       // Outgoing data
       internal Queue<SSegment> slist;
       internal Queue<SSegment> unsent_slist;
-      internal uint sbuf_len, snd_nxt, snd_wnd, lastsend;
-      internal uint snd_una;  /* oldest unacknowledged sequence number */
-      internal byte swnd_scale; // Window scale factor
+      internal guint32 sbuf_len, snd_nxt, snd_wnd, lastsend;
+      internal guint32 snd_una;  /* oldest unacknowledged sequence number */
+      internal guint8 swnd_scale; // Window scale factor
       internal PseudoTcpFifo sbuf;
 
       // Maximum segment size, estimated protocol level, largest segment sent
-      internal uint mss, msslevel, largest, mtu_advise;
+      internal guint32 mss, msslevel, largest, mtu_advise;
       // Retransmit timer
-      internal uint rto_base;
+      internal guint32 rto_base;
 
       // Timestamp tracking
-      internal uint ts_recent, ts_lastack;
+      internal guint32 ts_recent, ts_lastack;
 
       // Round-trip calculation
-      internal uint rx_rttvar, rx_srtt, rx_rto;
+      internal guint32 rx_rttvar, rx_srtt, rx_rto;
 
       // Congestion avoidance, Fast retransmit/recovery, Delayed ACKs
-      internal uint ssthresh, cwnd;
-      internal byte dup_acks;
-      internal uint recover;
-      internal bool fast_recovery;
-      internal uint t_ack;  /* time a delayed ack was scheduled; 0 if no acks scheduled */
-      internal uint last_acked_ts;
+      internal guint32 ssthresh, cwnd;
+      internal guint8 dup_acks;
+      internal guint32 recover;
+      internal gboolean fast_recovery;
+      internal guint32 t_ack;  /* time a delayed ack was scheduled; 0 if no acks scheduled */
+      internal guint32 last_acked_ts;
 
-      internal bool use_nagling;
-      internal uint ack_delay;
+      internal gboolean use_nagling;
+      internal guint32 ack_delay;
 
       // This is used by unit tests to test backward compatibility of
       // PseudoTcp implementations that don't support window scaling.
-      internal bool support_wnd_scale;
+      internal gboolean support_wnd_scale;
 
       /* Current time. Typically only used for testing, when non-zero. When zero,
        * the system monotonic clock is used. Units: monotonic milliseconds. */
-      internal uint current_time;
+      internal guint32 current_time;
 
       /* This is used by compatible implementations (with the TCP_OPT_FIN_ACK
        * option) to enable correct FIN-ACK connection termination. Defaults to
        * true unless no compatible option is received. */
-      internal bool support_fin_ack;
+      internal gboolean support_fin_ack;
     }
 
     static bool LARGER(uint a, uint b) { return (((a) - (b) - 1) < (uint.MaxValue >> 1)); }
@@ -731,8 +741,8 @@ class PseudoTcp
     static PseudoTcpWriteResult packet(PseudoTcpSocket *self, uint seq,
         TcpFlags flags, uint offset, uint len, uint now);
     static bool parse (PseudoTcpSocket *self,
-        const byte *_header_buf, long header_buf_len,
-        const byte *data_buf, long data_buf_len);
+        const byte *_header_buf, gsize header_buf_len,
+        const byte *data_buf, gsize data_buf_len);
     static bool process(PseudoTcpSocket *self, Segment *seg);
     static int transmit(PseudoTcpSocket *self, SSegment *sseg, uint now);
     static void attempt_send(PseudoTcpSocket *self, SendFlags sflags);
@@ -789,7 +799,7 @@ class PseudoTcp
       debug_level = level;
     }
 
-    static uint
+    static guint32
     get_current_time (PseudoTcpSocket socket)
     {
       if (/*G_UNLIKELY*/ (socket.priv.current_time != 0))
@@ -805,7 +815,7 @@ class PseudoTcp
     }
 
     void
-    pseudo_tcp_socket_set_time (PseudoTcpSocket self, uint current_time)
+    pseudo_tcp_socket_set_time(PseudoTcpSocket self, guint32 current_time)
     {
       self.priv.current_time = current_time;
     }
@@ -1071,8 +1081,8 @@ class PseudoTcp
     queue_connect_message (PseudoTcpSocket self)
     {
       PseudoTcpSocketPrivate priv = self.priv;
-      byte[] buf = new byte[8];
-      size_t size = 0;
+      guint8[] buf = new guint8[8];
+      gsize size = 0;
 
       buf[size++] = CTL_CONNECT;
 
@@ -1088,7 +1098,7 @@ class PseudoTcp
         buf[size++] = 0;  /* currently unused */
       }
 
-      priv.snd_wnd = (uint) size;
+      priv.snd_wnd = size;
 
       queue (self, buf, size, TcpFlags.FLAG_CTL);
     }
@@ -1130,7 +1140,7 @@ class PseudoTcp
     }
 
     void
-    pseudo_tcp_socket_notify_mtu(PseudoTcpSocket self, ushort mtu)
+    pseudo_tcp_socket_notify_mtu(PseudoTcpSocket self, guint16 mtu)
     {
       PseudoTcpSocketPrivate priv = self.priv;
       priv.mtu_advise = mtu;
@@ -1180,7 +1190,7 @@ class PseudoTcp
     pseudo_tcp_socket_notify_clock(PseudoTcpSocket self)
     {
       PseudoTcpSocketPrivate priv = self.priv;
-      uint now = get_current_time (self);
+      guint32 now = get_current_time(self);
 
       if (priv.state == PseudoTcpState.TCP_CLOSED)
         return;
@@ -1213,8 +1223,8 @@ class PseudoTcp
         } else {
           // Note: (priv.slist.front().xmit == 0)) {
           // retransmit segments
-          uint nInFlight;
-          uint rto_limit;
+          guint32 nInFlight;
+          guint32 rto_limit;
           int transmit_status;
 
           DEBUG (self, PseudoTcpDebugLevel.PSEUDO_TCP_DEBUG_NORMAL,
@@ -1276,11 +1286,11 @@ class PseudoTcp
 
     }
 
-    bool
+    gboolean
     pseudo_tcp_socket_notify_packet(PseudoTcpSocket self,
-        byte[] buffer, uint len)
+        byte[] buffer, guint32 len)
     {
-      bool retval;
+      gboolean retval;
 
       if (len > MAX_PACKET) {
         //LOG_F(WARNING) << "packet too large";
@@ -1337,13 +1347,13 @@ class PseudoTcp
       return retval;
     }*/
 
-    bool
-    pseudo_tcp_socket_get_next_clock(PseudoTcpSocket self, ref ulong timeout)
+    gboolean
+    pseudo_tcp_socket_get_next_clock(PseudoTcpSocket self, ref guint64 timeout)
     {
       PseudoTcpSocketPrivate priv = self.priv;
-      uint now = get_current_time (self);
-      long snd_buffered;
-      uint closed_timeout;
+      guint32 now = get_current_time(self);
+      gsize snd_buffered;
+      guint32 closed_timeout;
 
       if (priv.shutdown == Shutdown.SD_FORCEFUL) {
         if (priv.support_fin_ack) {
@@ -1415,12 +1425,12 @@ class PseudoTcp
     }
 
 
-    long
+    gint
     pseudo_tcp_socket_recv(PseudoTcpSocket self, byte[] buffer, size_t len)
     {
       PseudoTcpSocketPrivate priv = self.priv;
-      long bytesread;
-      long available_space;
+      gsize bytesread;
+      gsize available_space;
 
       /* Received a FIN from the peer, so return 0. RFC 793, §3.5, Case 2. */
       if (priv.support_fin_ack && priv.shutdown_reads) {
@@ -1467,15 +1477,16 @@ class PseudoTcp
         }
       }
 
-      return bytesread;
+#warning this cast was not here in C code
+      return (gint) bytesread;
     }
 
     gint
-    pseudo_tcp_socket_send(PseudoTcpSocket self, byte[] buffer, uint len)
+    pseudo_tcp_socket_send(PseudoTcpSocket self, byte[] buffer, guint32 len)
     {
       PseudoTcpSocketPrivate priv = self.priv;
       gint written;
-      long available_space;
+      gsize available_space;
 
       if (priv.state != PseudoTcpState.TCP_ESTABLISHED) {
         priv.error = pseudo_tcp_state_has_sent_fin (priv.state) ? EPIPE : ENOTCONN;
@@ -1490,7 +1501,8 @@ class PseudoTcp
         return -1;
       }
 
-      written = queue (self, buffer, len, TcpFlags.FLAG_NONE);
+#warning this cast was not here in C code (gint)
+      written = (gint) queue (self, buffer, len, TcpFlags.FLAG_NONE);
       attempt_send(self, SendFlags.sfNone);
 
       if (written > 0 && (uint)written < len) {
@@ -1501,7 +1513,7 @@ class PseudoTcp
     }
 
     void
-    pseudo_tcp_socket_close(PseudoTcpSocket self, bool force)
+    pseudo_tcp_socket_close(PseudoTcpSocket self, gboolean force)
     {
       PseudoTcpSocketPrivate priv = self.priv;
 
@@ -1594,22 +1606,22 @@ class PseudoTcp
       }
     }
 
-    int
+/*    int
     pseudo_tcp_socket_get_error(PseudoTcpSocket self)
     {
       PseudoTcpSocketPrivate priv = self.priv;
       return priv.error;
-    }
+    }*/
 
     //
     // Internal Implementation
     //
 
-    static uint
-    queue (PseudoTcpSocket self, /*const gchar * */ byte[] data, uint len, TcpFlags flags)
+    static guint32
+    queue(PseudoTcpSocket self, /*const gchar * */ byte[] data, guint32 len, TcpFlags flags)
     {
       PseudoTcpSocketPrivate priv = self.priv;
-      long available_space;
+      gsize available_space;
 
       available_space = pseudo_tcp_fifo_get_write_remaining (priv.sbuf);
       if (len > available_space) {
@@ -1625,7 +1637,7 @@ class PseudoTcp
         (g_queue_peek_tail (priv.slist)).len += len;
       } else {
         SSegment sseg = new SSegment();
-        long snd_buffered = pseudo_tcp_fifo_get_buffered (priv.sbuf);
+        gsize snd_buffered = pseudo_tcp_fifo_get_buffered (priv.sbuf);
 
         sseg.seq = (size_t) (priv.snd_una + snd_buffered);
         sseg.len = len;
@@ -1635,7 +1647,7 @@ class PseudoTcp
       }
 
       //LOG(LS_INFO) << "PseudoTcp::queue - priv.slen = " << priv.slen;
-      return (uint) pseudo_tcp_fifo_write (priv.sbuf, data, len);
+      return pseudo_tcp_fifo_write (priv.sbuf, data, len);
     }
 
     // Creates a packet and submits it to the network. This method can either
@@ -1648,14 +1660,14 @@ class PseudoTcp
     // value is 0 then this is an ACK packet, otherwise this packet has payload.
 
     static PseudoTcpWriteResult
-    packet(PseudoTcpSocket self, uint seq, TcpFlags flags,
-        uint offset, uint len, uint now)
+    packet(PseudoTcpSocket self, guint32 seq, TcpFlags flags,
+        guint32 offset, guint32 len, guint32 now)
     {
       PseudoTcpSocketPrivate priv = self.priv;
       /*union {
         byte u8[MAX_PACKET];
-        ushort u16[MAX_PACKET / 2];
-        uint u32[MAX_PACKET / 4];
+        guint16 u16[MAX_PACKET / 2];
+        guint32 u32[MAX_PACKET / 4];
       } buffer;*/
 
       byte[] buffer = new byte[MAX_PACKET];
@@ -1696,7 +1708,7 @@ class PseudoTcp
       priv.ts_lastack = priv.rcv_nxt;
 
       if (len != 0) {
-        long bytes_read;
+        gsize bytes_read;
 
         bytes_read = pseudo_tcp_fifo_read_offset (priv.sbuf, buffer, HEADER_SIZE,
             len, offset);
@@ -1727,9 +1739,9 @@ class PseudoTcp
       return PseudoTcpWriteResult.WR_SUCCESS;
     }
 
-    static bool
-    parse (PseudoTcpSocket self, byte[] _header_buf, long header_buf_len,
-        byte[] data_buf, long data_buf_len)
+    static gboolean
+    parse (PseudoTcpSocket self, byte[] _header_buf, gsize header_buf_len,
+        byte[] data_buf, gsize data_buf_len)
     {
       Segment seg = new Segment();
 
@@ -1770,7 +1782,7 @@ class PseudoTcp
 
     /* True iff the @state requires that a FIN has already been sent by this
      * host. */
-    static bool
+    static gboolean
     pseudo_tcp_state_has_sent_fin (PseudoTcpState state)
     {
       switch (state) {
@@ -1794,7 +1806,7 @@ class PseudoTcp
 
     /* True iff the @state requires that a FIN has already been received from the
      * peer. */
-    static bool
+    static gboolean
     pseudo_tcp_state_has_received_fin (PseudoTcpState state)
     {
       switch (state) {
@@ -1818,7 +1830,7 @@ class PseudoTcp
 
     /* True iff the @state requires that a FIN-ACK has already been received from
      * the peer. */
-    static bool
+    static gboolean
     pseudo_tcp_state_has_received_fin_ack (PseudoTcpState state)
     {
       switch (state) {
@@ -1840,20 +1852,20 @@ class PseudoTcp
       }
     }
 
-    static bool
+    static gboolean
     process(PseudoTcpSocket self, Segment seg)
     {
       PseudoTcpSocketPrivate priv = self.priv;
-      uint now;
+      guint32 now;
       SendFlags sflags = SendFlags.sfNone;
-      bool bIgnoreData;
-      bool bNewData;
-      bool bConnect = false;
-      long snd_buffered;
-      long available_space;
-      uint kIdealRefillSize;
-      bool is_valuable_ack, is_duplicate_ack, is_fin_ack = false;
-      bool received_fin = false;
+      gboolean bIgnoreData;
+      gboolean bNewData;
+      gboolean bConnect = false;
+      gsize snd_buffered;
+      gsize available_space;
+      guint32 kIdealRefillSize;
+      gboolean is_valuable_ack, is_duplicate_ack, is_fin_ack = false;
+      gboolean received_fin = false;
 
       /* If this is the wrong conversation, send a reset!?!
          (with the correct conversation?) */
@@ -1926,12 +1938,13 @@ class PseudoTcp
       is_duplicate_ack = (seg.ack == priv.snd_una);
 
       if (is_valuable_ack) {
-        uint nAcked;
-        uint nFree;
+        guint32 nAcked;
+        guint32 nFree;
 
         // Calculate round-trip time
         if (seg.tsecr != 0) {
-          long rtt = time_diff(now, seg.tsecr);
+#warning rtt was "long" in C code and the cast was not there
+          gsize rtt = (gsize) time_diff(now, seg.tsecr);
           if (rtt >= 0) {
             if (priv.rx_srtt == 0) {
               priv.rx_srtt = (uint) rtt;
@@ -1939,7 +1952,7 @@ class PseudoTcp
             } else {
               priv.rx_rttvar = (size_t) ((3 * priv.rx_rttvar +
                   Math.Abs((long)(rtt - priv.rx_srtt))) / 4);
-              priv.rx_srtt = (size_t) (7 * priv.rx_srtt + rtt) / 8;
+              priv.rx_srtt = (7 * priv.rx_srtt + rtt) / 8;
             }
             priv.rx_rto = bound(MIN_RTO,
                 (size_t) (priv.rx_srtt + Math.Max(1LU, 4 * priv.rx_rttvar)), MAX_RTO);
@@ -2039,8 +2052,7 @@ class PseudoTcp
           DEBUG (self, PseudoTcpDebugLevel.PSEUDO_TCP_DEBUG_VERBOSE, "Received dup ack (dups: %u)",
               priv.dup_acks);
           if (priv.dup_acks == 3) { // (Fast Retransmit)
-            int transmit_status;
-
+            guint32 transmit_status;
 
             if (LARGER_OR_EQUAL (priv.snd_una, priv.recover) ||
                 seg.tsecr == priv.last_acked_ts) { /* NewReno */
@@ -2048,7 +2060,8 @@ class PseudoTcp
               DEBUG (self, PseudoTcpDebugLevel.PSEUDO_TCP_DEBUG_NORMAL, "enter recovery");
               DEBUG(self, PseudoTcpDebugLevel.PSEUDO_TCP_DEBUG_NORMAL, "recovery retransmit");
 
-              transmit_status = transmit(self, g_queue_peek_head (priv.slist),
+#warning the cast was not here in C code
+              transmit_status = (guint32)transmit(self, g_queue_peek_head (priv.slist),
                   now);
               if (transmit_status != 0) {
                   DEBUG(self, PseudoTcpDebugLevel.PSEUDO_TCP_DEBUG_NORMAL,
@@ -2219,7 +2232,7 @@ class PseudoTcp
 
       // Adjust the incoming segment to fit our receive buffer
       if (SMALLER(seg.seq, priv.rcv_nxt)) {
-        uint nAdjust = priv.rcv_nxt - seg.seq;
+        guint32 nAdjust = priv.rcv_nxt - seg.seq;
         if (nAdjust < seg.len) {
           seg.seq += nAdjust;
           seg.data += nAdjust;
@@ -2232,7 +2245,7 @@ class PseudoTcp
       available_space = pseudo_tcp_fifo_get_write_remaining (priv.rbuf);
 
       if ((seg.seq + seg.len - priv.rcv_nxt) > available_space) {
-        uint nAdjust = seg.seq + seg.len - priv.rcv_nxt - available_space;
+        guint32 nAdjust = seg.seq + seg.len - priv.rcv_nxt - available_space;
         if (nAdjust < seg.len) {
           seg.len -= nAdjust;
         } else {
@@ -2252,8 +2265,8 @@ class PseudoTcp
             priv.rcv_nxt += seg.len;
           }
         } else {
-          uint nOffset = seg.seq - priv.rcv_nxt;
-          long res;
+          guint32 nOffset = seg.seq - priv.rcv_nxt;
+          gsize res;
 
           res = pseudo_tcp_fifo_write_offset (priv.rbuf, seg.data,
               seg.len, nOffset);
@@ -2322,8 +2335,8 @@ class PseudoTcp
       return true;
     }
 
-    static int
-    transmit(PseudoTcpSocket self, SSegment segment, uint now)
+    static int /*gboolean - originally in C, but it does not match in C#*/
+    transmit(PseudoTcpSocket self, SSegment segment, guint32 now)
     {
       PseudoTcpSocketPrivate priv = self.priv;
       uint nTransmit = min(segment.len, priv.mss);
@@ -2334,8 +2347,8 @@ class PseudoTcp
       }
 
       while (true) {
-        uint seq = segment.seq;
-        byte flags = segment.flags;
+        guint32 seq = segment.seq;
+        guint8 flags = segment.flags;
         PseudoTcpWriteResult wres;
 
         /* The packet must not have already been acknowledged. */
@@ -2425,12 +2438,12 @@ class PseudoTcp
 
 
       while (true) {
-        uint cwnd;
-        uint nWindow;
-        uint nInFlight;
-        uint nUseable;
-        uint nAvailable;
-        long snd_buffered;
+        guint32 cwnd;
+        guint32 nWindow;
+        guint32 nInFlight;
+        guint32 nUseable;
+        guint32 nAvailable;
+        gsize snd_buffered;
         GList *iter;
         SSegment *sseg;
         int transmit_status;
@@ -2458,7 +2471,7 @@ class PseudoTcp
         }
 
         if (bFirst) {
-          long available_space = pseudo_tcp_fifo_get_write_remaining (&priv.sbuf);
+          gsize available_space = pseudo_tcp_fifo_get_write_remaining (&priv.sbuf);
 
           bFirst = false;
           /* COMMENTED OUT
@@ -2536,7 +2549,7 @@ class PseudoTcp
      * has been called as a result of an RST segment being received.
      * See: RFC 1122, §4.2.2.13. */
     static void
-    closedown (PseudoTcpSocket self, uint err, ClosedownSource source)
+    closedown (PseudoTcpSocket self, guint32 err, ClosedownSource source)
     {
       PseudoTcpSocketPrivate priv = self.priv;
 
@@ -2602,7 +2615,7 @@ class PseudoTcp
     }
 
     static void
-    apply_window_scale_option (PseudoTcpSocket self, byte scale_factor)
+    apply_window_scale_option (PseudoTcpSocket self, guint8 scale_factor)
     {
        PseudoTcpSocketPrivate priv = self.priv;
 
@@ -2611,7 +2624,7 @@ class PseudoTcp
     }
 
     static void
-    apply_fin_ack_option (PseudoTcpSocket *self)
+    apply_fin_ack_option (PseudoTcpSocket self)
     {
       PseudoTcpSocketPrivate *priv = self.priv;
 
@@ -2619,8 +2632,8 @@ class PseudoTcp
     }
 
     static void
-    apply_option (PseudoTcpSocket self, byte kind, byte[] data,
-        uint len)
+    apply_option (PseudoTcpSocket self, guint8 kind, guint8[] data,
+        guint32 len)
     {
       switch (kind) {
       case TCP_OPT_MSS:
@@ -2654,18 +2667,18 @@ class PseudoTcp
 
 
     static void
-    parse_options (PseudoTcpSocket self, byte[] data, uint len)
+    parse_options (PseudoTcpSocket self, byte[] data, guint32 len)
     {
       PseudoTcpSocketPrivate priv = self.priv;
-      bool has_window_scaling_option = false;
-      bool has_fin_ack_option = false;
-      uint pos = 0;
+      gboolean has_window_scaling_option = false;
+      gboolean has_fin_ack_option = false;
+      guint32 pos = 0;
 
       // See http://www.freesoft.org/CIE/Course/Section4/8.htm for
       // parsing the options list.
       while (pos < len) {
-        byte kind = TCP_OPT_EOL;
-        byte opt_len;
+        guint8 kind = TCP_OPT_EOL;
+        guint8 opt_len;
 
         if (len < pos + 1)
           return;
@@ -2723,7 +2736,7 @@ class PseudoTcp
     }
 
     static void
-    resize_send_buffer (PseudoTcpSocket self, uint new_size)
+    resize_send_buffer (PseudoTcpSocket self, guint32 new_size)
     {
       PseudoTcpSocketPrivate priv = self.priv;
 
@@ -2733,12 +2746,12 @@ class PseudoTcp
 
 
     static void
-    resize_receive_buffer (PseudoTcpSocket self, uint new_size)
+    resize_receive_buffer (PseudoTcpSocket self, guint32 new_size)
     {
       PseudoTcpSocketPrivate priv = self.priv;
-      byte scale_factor = 0;
-      bool result;
-      long available_space;
+      guint8 scale_factor = 0;
+      gboolean result;
+      gsize available_space;
 
       if (priv.rbuf_len == new_size)
         return;
@@ -2781,11 +2794,11 @@ class PseudoTcp
       return (pseudo_tcp_socket_get_available_send_space (self) > 0);
     }
 
-    long
+    gsize
     pseudo_tcp_socket_get_available_send_space (PseudoTcpSocket self)
     {
       PseudoTcpSocketPrivate priv = self.priv;
-      long ret;
+      gsize ret;
 
       if (!pseudo_tcp_state_has_sent_fin (priv.state)) {
         ret = pseudo_tcp_fifo_get_write_remaining (&priv.sbuf);
@@ -2881,7 +2894,7 @@ class PseudoTcp
 
     /* (err == 0) means no error. */
     static void
-    set_state_closed (PseudoTcpSocket self, uint err)
+    set_state_closed (PseudoTcpSocket self, guint32 err)
     {
       PseudoTcpSocketPrivate priv = self.priv;
 
