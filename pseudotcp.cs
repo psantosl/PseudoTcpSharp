@@ -158,7 +158,7 @@ class PseudoTcp
     const int ETIMEDOUT = 110;        /* Connection timed out */
 
     // Standard MTUs
-    const guint16[] PACKET_MAXIMUMS = new guint16[]{
+    static guint16[] PACKET_MAXIMUMS = new guint16[]{
       65535,    // Theoretical maximum, Hyperchannel
       32000,    // Nothing
       17914,    // 16Mb IBM Token Ring
