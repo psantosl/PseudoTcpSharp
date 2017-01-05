@@ -604,7 +604,7 @@ class PseudoTcp
         *
         * Since: 0.0.11
         */
-    class PseudoTcpCallbacks{
+    public class PseudoTcpCallbacks{
         /*gpointer user_data;
         void  (*PseudoTcpOpened) (PseudoTcpSocket *tcp, gpointer data);
         void  (*PseudoTcpReadable) (PseudoTcpSocket *tcp, gpointer data);
@@ -613,34 +613,22 @@ class PseudoTcp
         PseudoTcpWriteResult (*WritePacket) (PseudoTcpSocket *tcp,
             const gchar * buffer, guint32 len, gpointer data);*/
 
-        internal object user_data;
+        public delegate void Callback(PseudoTcpSocket tcp, object data);
+        public delegate void ClosedCallback(PseudoTcpSocket tcp, uint error, object data);
+        public delegate PseudoTcpWriteResult WritePacketCallback(PseudoTcpSocket tcp, byte[] buffer, uint len, object data);
 
-        internal void  PseudoTcpOpened(PseudoTcpSocket tcp, object data)
-        {
+        public object user_data;
 
-        }
+        public Callback PseudoTcpOpened;
 
-        internal void  PseudoTcpReadable(PseudoTcpSocket tcp, object data)
-        {
+        public Callback PseudoTcpReadable;
 
-        }
-        internal void  PseudoTcpWritable(PseudoTcpSocket tcp, object data)
-        {
+        public Callback PseudoTcpWritable;
 
-        }
+        public ClosedCallback PseudoTcpClosed;
 
-        internal void  PseudoTcpClosed(PseudoTcpSocket tcp, uint error, object data)
-        {
-
-        }
-
-        internal PseudoTcpWriteResult WritePacket(PseudoTcpSocket tcp,
-            byte[] buffer, uint len, object data)
-        {
-            return PseudoTcpWriteResult.WR_SUCCESS;
-        }
-
-
+        public WritePacketCallback WritePacket;
+        // return PseudoTcpWriteResult.WR_SUCCESS;
     }
 
     class PseudoTcpSocketPrivate {
@@ -1068,15 +1056,13 @@ class PseudoTcp
       priv.support_fin_ack = true;
     }
 
-    /*PseudoTcpSocket *pseudo_tcp_socket_new (uint conversation,
-        PseudoTcpCallbacks *callbacks)
+    static PseudoTcpSocket pseudo_tcp_socket_new (uint conversation,
+        PseudoTcpCallbacks callbacks)
     {
-
-      return g_object_new (PSEUDO_TCP_SOCKET_TYPE,
-          "conversation", conversation,
-          "callbacks", callbacks,
-          NULL);
-    }*/
+        PseudoTcpSocket result = new PseudoTcpSocket();
+        result.priv.callbacks = callbacks;
+        return result;
+    }
 
     static void
     queue_connect_message (PseudoTcpSocket self)
