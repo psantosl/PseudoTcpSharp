@@ -2629,9 +2629,11 @@ class PseudoTcp
       case PseudoTcpState.TCP_SYN_RECEIVED:
       case PseudoTcpState.TCP_ESTABLISHED:
         set_state(self, PseudoTcpState.TCP_FIN_WAIT_1);
+        goto case PseudoTcpState.TCP_FIN_WAIT_1;
         /* Fall through. */
       case PseudoTcpState.TCP_FIN_WAIT_1:
         set_state (self, PseudoTcpState.TCP_FIN_WAIT_2);
+        goto case PseudoTcpState.TCP_FIN_WAIT_2;
         /* Fall through. */
       case PseudoTcpState.TCP_FIN_WAIT_2:
       case PseudoTcpState.TCP_CLOSING:
