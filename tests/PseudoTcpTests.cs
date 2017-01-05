@@ -10,10 +10,10 @@ using NUnit.Framework;
 namespace Tests
 {
     [TestFixture]
-    public class ChildrenBlobberTests
+    public class PseudoTcpTests
     {
         [Test]
-        public void BlobEmptyChildrenTest()
+        public void BasicTest()
         {
             PseudoTcp.PseudoTcpCallbacks cbsLeft = new PseudoTcp.PseudoTcpCallbacks();
             PseudoTcp.PseudoTcpCallbacks cbsRight = new PseudoTcp.PseudoTcpCallbacks();
