@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2013
+VisualStudioVersion = 12.0.21005.1
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "pseudotcp", "pseudotcp.csproj", "{C37FFA6E-3FFF-459E-9A38-B7E4FC9D15DA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "tests", "tests\tests.csproj", "{1E6C7111-D54B-4532-A155-24C38E8A3823}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C37FFA6E-3FFF-459E-9A38-B7E4FC9D15DA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C37FFA6E-3FFF-459E-9A38-B7E4FC9D15DA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C37FFA6E-3FFF-459E-9A38-B7E4FC9D15DA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C37FFA6E-3FFF-459E-9A38-B7E4FC9D15DA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1E6C7111-D54B-4532-A155-24C38E8A3823}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1E6C7111-D54B-4532-A155-24C38E8A3823}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1E6C7111-D54B-4532-A155-24C38E8A3823}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1E6C7111-D54B-4532-A155-24C38E8A3823}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

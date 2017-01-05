@@ -90,7 +90,7 @@ using gboolean = System.Boolean;
 using guint8 = System.Byte;
 using gsize = System.UInt32; // it should be 64 for 64 bit platforms...
 
-class PseudoTcp
+public class PseudoTcp
 {
     struct PseudoTcpSocketClass {
         /*GObjectClass*/ object parent_class;
@@ -99,7 +99,7 @@ class PseudoTcp
     //typedef struct _PseudoTcpSocketPrivate PseudoTcpSocketPrivate;
 
 
-    class PseudoTcpSocket {
+    public class PseudoTcpSocket {
         /*GObject*/ object parent;
         internal PseudoTcpSocketPrivate priv;
     }
@@ -117,7 +117,7 @@ class PseudoTcp
      *
      * Since: 0.0.11
      */
-    enum PseudoTcpWriteResult{
+    public enum PseudoTcpWriteResult{
       WR_SUCCESS,
       WR_TOO_LARGE,
       WR_FAIL
@@ -135,7 +135,7 @@ class PseudoTcp
      *
      * Since: 0.1.8
      */
-    enum PseudoTcpShutdown{
+    public enum PseudoTcpShutdown{
       PSEUDO_TCP_SHUTDOWN_RD,
       PSEUDO_TCP_SHUTDOWN_WR,
       PSEUDO_TCP_SHUTDOWN_RDWR,
@@ -152,7 +152,7 @@ class PseudoTcp
     const int ECONNABORTED = 103;     /* Software caused connection abort */
     const int ENOTCONN = 107;         /* Transport endpoint is not connected */
     const int EAGAIN = 11;            /* Try again */
-    const int EWOULDBLOCK = EAGAIN;   /* Operation would block */
+    public const int EWOULDBLOCK = EAGAIN;   /* Operation would block */
     const int EPIPE = 32;             /* Broken pipe */
     const int ECONNRESET = 104;       /* Connection reset by peer */
     const int ETIMEDOUT = 110;        /* Connection timed out */
@@ -253,7 +253,7 @@ class PseudoTcp
     */
 
     /* NOTE: This must fit in 5 bits. This is used on the wire. */
-    enum TcpFlags {
+    internal enum TcpFlags {
       FLAG_NONE = 0,
       FLAG_FIN = 1 << 0,
       FLAG_CTL = 1 << 1,
@@ -337,7 +337,7 @@ class PseudoTcp
     ////////////////////////////////////////////////////////
 
 
-    class PseudoTcpFifo{
+    internal class PseudoTcpFifo{
       internal guint8[] buffer;
       internal gsize buffer_length;
       internal gsize data_length;
@@ -345,11 +345,13 @@ class PseudoTcp
     }
 
 
-    static void
-    pseudo_tcp_fifo_init(PseudoTcpFifo b, gsize size)
+    static PseudoTcpFifo
+    pseudo_tcp_fifo_init(gsize size)
     {
+      PseudoTcpFifo b = new PseudoTcpFifo();
       b.buffer = new byte[size];
       b.buffer_length = size;
+      return b;
     }
 
     static void
@@ -498,7 +500,7 @@ class PseudoTcp
     //////////////////////////////////////////////////////////////////////
 
     /* Only used if FIN-ACK support is disabled. */
-    enum Shutdown{
+    internal enum Shutdown{
       SD_NONE,
       SD_GRACEFUL,
       SD_FORCEFUL
@@ -522,13 +524,13 @@ class PseudoTcp
       internal guint32 tsval, tsecr;
     }
 
-    class SSegment{
+    internal class SSegment{
       internal guint32 seq, len;
       internal guint8 xmit;
       internal TcpFlags flags;
     }
 
-    class RSegment{
+    internal class RSegment{
       internal guint32 seq, len;
     }
 
@@ -575,7 +577,7 @@ class PseudoTcp
      *
      * Since: 0.0.11
      */
-    enum PseudoTcpState{
+    internal enum PseudoTcpState{
       TCP_LISTEN,
       TCP_SYN_SENT,
       TCP_SYN_RECEIVED,
@@ -631,7 +633,7 @@ class PseudoTcp
         // return PseudoTcpWriteResult.WR_SUCCESS;
     }
 
-    class PseudoTcpSocketPrivate {
+    internal class PseudoTcpSocketPrivate {
       internal PseudoTcpCallbacks callbacks;
 
       internal Shutdown shutdown;  /* only used if !support_fin_ack */
@@ -775,6 +777,8 @@ class PseudoTcp
         PseudoTcpSocket self,
         PseudoTcpDebugLevel level, string fmt, params object[] args)
     {
+        return;
+
       if (debug_level >= level)
         Console.WriteLine (level == PseudoTcpDebugLevel.PSEUDO_TCP_DEBUG_NORMAL ? "libnice-pseudotcp" : "libnice-pseudotcp-verbose" +
             /*G_LOG_LEVEL_DEBUG,*/ 
@@ -797,7 +801,7 @@ class PseudoTcp
       return g_get_monotonic_time () /*/ 1000*/;
     }
 
-    static uint g_get_monotonic_time()
+    static public uint g_get_monotonic_time()
     {
         // probably use StopWatch or something similar
         return (uint) Environment.TickCount;
@@ -993,7 +997,7 @@ class PseudoTcp
     }*/
 
 
-    static void
+    static public void
     pseudo_tcp_socket_init (PseudoTcpSocket obj)
     {
       /* Use g_new0, and do not use g_object_set_private because the size of
@@ -1003,13 +1007,15 @@ class PseudoTcp
 
       obj.priv = priv;
 
+      priv.rlist = new List<RSegment>();
+
       priv.shutdown = Shutdown.SD_NONE;
       priv.error = 0;
 
       priv.rbuf_len = DEFAULT_RCV_BUF_SIZE;
-      pseudo_tcp_fifo_init (priv.rbuf, priv.rbuf_len);
+      priv.rbuf = pseudo_tcp_fifo_init(priv.rbuf_len);
       priv.sbuf_len = DEFAULT_SND_BUF_SIZE;
-      pseudo_tcp_fifo_init (priv.sbuf, priv.sbuf_len);
+      priv.sbuf = pseudo_tcp_fifo_init(priv.sbuf_len);
 
       priv.state = PseudoTcpState.TCP_LISTEN;
       priv.conv = 0;
@@ -1056,7 +1062,7 @@ class PseudoTcp
       priv.support_fin_ack = true;
     }
 
-    static PseudoTcpSocket pseudo_tcp_socket_new (uint conversation,
+    static public PseudoTcpSocket pseudo_tcp_socket_new (uint conversation,
         PseudoTcpCallbacks callbacks)
     {
         PseudoTcpSocket result = new PseudoTcpSocket();
@@ -1108,7 +1114,7 @@ class PseudoTcp
       queue (self, null, 0, TcpFlags.FLAG_RST);
     }
 
-    bool
+    static public bool
     pseudo_tcp_socket_connect(PseudoTcpSocket self)
     {
       PseudoTcpSocketPrivate priv = self.priv;
@@ -1126,7 +1132,7 @@ class PseudoTcp
       return true;
     }
 
-    void
+    static public void
     pseudo_tcp_socket_notify_mtu(PseudoTcpSocket self, guint16 mtu)
     {
       PseudoTcpSocketPrivate priv = self.priv;
@@ -1196,7 +1202,7 @@ class PseudoTcp
         return result;
     }
 
-    void
+    static public void
     pseudo_tcp_socket_notify_clock(PseudoTcpSocket self)
     {
       PseudoTcpSocketPrivate priv = self.priv;
@@ -1296,7 +1302,7 @@ class PseudoTcp
 
     }
 
-    gboolean
+    static public gboolean
     pseudo_tcp_socket_notify_packet(PseudoTcpSocket self,
         byte[] buffer, guint32 len)
     {
@@ -1362,7 +1368,7 @@ class PseudoTcp
       return retval;
     }*/
 
-    gboolean
+    static public gboolean
     pseudo_tcp_socket_get_next_clock(PseudoTcpSocket self, ref guint64 timeout)
     {
       PseudoTcpSocketPrivate priv = self.priv;
@@ -1440,7 +1446,7 @@ class PseudoTcp
     }
 
 
-    gint
+    static public gint
     pseudo_tcp_socket_recv(PseudoTcpSocket self, byte[] buffer, size_t len)
     {
       PseudoTcpSocketPrivate priv = self.priv;
@@ -1496,7 +1502,7 @@ class PseudoTcp
       return (gint) bytesread;
     }
 
-    gint
+    static public gint
     pseudo_tcp_socket_send(PseudoTcpSocket self, byte[] buffer, guint32 len)
     {
       PseudoTcpSocketPrivate priv = self.priv;
@@ -1527,7 +1533,7 @@ class PseudoTcp
       return written;
     }
 
-    void
+    static public void
     pseudo_tcp_socket_close(PseudoTcpSocket self, gboolean force)
     {
       PseudoTcpSocketPrivate priv = self.priv;
@@ -1545,7 +1551,7 @@ class PseudoTcp
       pseudo_tcp_socket_shutdown (self, PseudoTcpShutdown.PSEUDO_TCP_SHUTDOWN_RDWR);
     }
 
-    void
+    static public void
     pseudo_tcp_socket_shutdown (PseudoTcpSocket self, PseudoTcpShutdown how)
     {
       PseudoTcpSocketPrivate priv = self.priv;
@@ -1621,12 +1627,12 @@ class PseudoTcp
       }
     }
 
-/*    int
+    static public int
     pseudo_tcp_socket_get_error(PseudoTcpSocket self)
     {
       PseudoTcpSocketPrivate priv = self.priv;
       return priv.error;
-    }*/
+    }
 
     //
     // Internal Implementation
@@ -2831,7 +2837,7 @@ class PseudoTcp
       priv.rcv_wnd = available_space;
     }
 
-    gint
+    static gint
     pseudo_tcp_socket_get_available_bytes (PseudoTcpSocket self)
     {
       PseudoTcpSocketPrivate priv = self.priv;
@@ -2958,7 +2964,7 @@ class PseudoTcp
         priv.callbacks.PseudoTcpClosed (self, err, priv.callbacks.user_data);
     }
 
-    bool
+    static bool
     pseudo_tcp_socket_is_closed (PseudoTcpSocket self)
     {
       PseudoTcpSocketPrivate priv = self.priv;
