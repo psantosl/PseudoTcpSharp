@@ -374,6 +374,9 @@ public class PseudoTcp
 
     static void memcpy(byte[] dst, gsize dstPos, byte[] src, gsize srcPos, gsize size)
     {
+        if (size == 0)
+            return;
+
         Buffer.BlockCopy(src, (int) srcPos, dst, (int) dstPos, (int)size);
     }
 
@@ -997,7 +1000,7 @@ public class PseudoTcp
     }*/
 
 
-    static public void
+    static void
     pseudo_tcp_socket_init (PseudoTcpSocket obj)
     {
       /* Use g_new0, and do not use g_object_set_private because the size of
@@ -1066,6 +1069,9 @@ public class PseudoTcp
         PseudoTcpCallbacks callbacks)
     {
         PseudoTcpSocket result = new PseudoTcpSocket();
+
+        pseudo_tcp_socket_init(result);
+
         result.priv.callbacks = callbacks;
         return result;
     }
@@ -2223,7 +2229,7 @@ public class PseudoTcp
       snd_buffered = pseudo_tcp_fifo_get_buffered (priv.sbuf);
       if (priv.bWriteEnable && snd_buffered < kIdealRefillSize) {
         priv.bWriteEnable = false;
-        //if (priv.callbacks.PseudoTcpWritable)
+        if (priv.callbacks.PseudoTcpWritable != null)
           priv.callbacks.PseudoTcpWritable(self, priv.callbacks.user_data);
       }
 
@@ -2374,7 +2380,7 @@ public class PseudoTcp
          * incoming pseudo-TCP data, rather than having to read the entire buffer
          * on each readable() callback before the next callback is enabled.
          * (When client-provided buffers are small, this is not possible.) */
-        //if (priv.callbacks.PseudoTcpReadable)
+        if (priv.callbacks.PseudoTcpReadable != null)
           priv.callbacks.PseudoTcpReadable(self, priv.callbacks.user_data);
       }
 
@@ -2947,7 +2953,7 @@ public class PseudoTcp
       set_state (self, PseudoTcpState.TCP_ESTABLISHED);
 
       adjustMTU (self);
-      //if (priv.callbacks.PseudoTcpOpened)
+      if (priv.callbacks.PseudoTcpOpened != null)
         priv.callbacks.PseudoTcpOpened(self, priv.callbacks.user_data);
     }
 

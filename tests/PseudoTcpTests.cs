@@ -23,35 +23,60 @@ namespace Tests
 
             Common common = new Common(leftSocket, rightSocket);
 
-            Left left = new Left(new byte[1024]);
+            byte[] source;
 
+            string initial = "This is a new text that has to be read and now some bytes";
+
+            using (MemoryStream st = new MemoryStream())
+            using (BinaryWriter writer =  new BinaryWriter(st))
+            {
+                writer.Write(initial);
+                writer.Write(new byte[1024 * 5]);
+                writer.Write(initial);
+
+                source = st.ToArray();
+            }
+
+            Left left = new Left(source, common);
             cbsLeft.PseudoTcpOpened = left.LeftOpened;
             cbsLeft.PseudoTcpReadable = null;
             cbsLeft.PseudoTcpWritable = left.Writable;
-            cbsLeft.PseudoTcpClosed = Common.Closed;
+            cbsLeft.PseudoTcpClosed = common.Closed;
             cbsLeft.WritePacket = common.WritePacket;
 
-            Right right = new Right();
+            Right right = new Right(left);
             cbsRight.PseudoTcpOpened = null;
             cbsRight.PseudoTcpReadable = right.Readable;
             cbsRight.PseudoTcpWritable = null;
-            cbsRight.PseudoTcpClosed = Common.Closed;
+            cbsRight.PseudoTcpClosed = common.Closed;
             cbsRight.WritePacket = common.WritePacket;
-
-            PseudoTcp.pseudo_tcp_socket_init(leftSocket);
-            PseudoTcp.pseudo_tcp_socket_init(rightSocket);
 
             PseudoTcp.pseudo_tcp_socket_notify_mtu(leftSocket, 1496);
             PseudoTcp.pseudo_tcp_socket_notify_mtu(rightSocket, 1496);
 
             PseudoTcp.pseudo_tcp_socket_connect(leftSocket);
 
-            Common.AdjustClock(leftSocket);
-            Common.AdjustClock(rightSocket);
+            common.AdjustClock(leftSocket);
+            common.AdjustClock(rightSocket);
 
-            while (!left.Eof() && right.TotalWrote < 1024)
+            while (!left.Eof() || right.TotalWrote < source.Length)
             {
-                Thread.Sleep(100);
+                Thread.Sleep(500);
+            }
+
+            byte[] dst = right.GetData();
+
+            using (MemoryStream st = new MemoryStream(dst))
+            using (BinaryReader reader = new BinaryReader(st))
+            {
+                string s = reader.ReadString();
+
+                byte[] b = reader.ReadBytes(1024 * 5);
+
+                string s2 = reader.ReadString();
+
+                Assert.AreEqual(initial, s, "initial string not ok");
+                Assert.AreEqual(initial, s2, "final string not ok");
             }
         }
 
@@ -69,13 +94,11 @@ namespace Tests
                 uint len,
                 object user_data)
             {
-                Random rnd = new Random();
+                int drop_rate = mRnd.Next(100);
 
-                int drop_rate = rnd.Next() % 100;
-
-                if (drop_rate < 5)
+                if (drop_rate < 15)
                 {
-                    // g_debug ("*********************Dropping packet (%d) from %p", drop_rate, sock);
+                    Console.WriteLine ("*********************Dropping packet from {0}", GetName(sock));
                     return PseudoTcp.PseudoTcpWriteResult.WR_SUCCESS;
                 }
 
@@ -91,6 +114,11 @@ namespace Tests
                 timer = new System.Threading.Timer(
                     (obj) =>
                     {
+                        if (sock == mLeft)
+                            Console.WriteLine("Left->Right {0}", newBuffer.Length);
+                        else
+                            Console.WriteLine("Right->Left {0}", newBuffer.Length);
+
                         PseudoTcp.pseudo_tcp_socket_notify_packet(other, newBuffer, (uint)newBuffer.Length);
                         AdjustClock(other);
 
@@ -103,14 +131,23 @@ namespace Tests
                 return PseudoTcp.PseudoTcpWriteResult.WR_SUCCESS;
             }
 
-            static internal void AdjustClock(PseudoTcp.PseudoTcpSocket sock)
+            internal void AdjustClock(PseudoTcp.PseudoTcpSocket sock)
             {
                 ulong timeout = 0;
 
                 if (PseudoTcp.pseudo_tcp_socket_get_next_clock(sock, ref timeout))
                 {
-                    timeout = PseudoTcp.g_get_monotonic_time();
-                    // g_debug ("Socket %p: Adjusting clock to %" G_GUINT64_FORMAT " ms", sock, timeout);
+                    uint now = PseudoTcp.g_get_monotonic_time();
+
+                    if (now < timeout)
+                        timeout -= now;
+                    else
+                        timeout = now - timeout;
+
+                    if (timeout > 900)
+                        timeout = 100;
+
+                    Console.WriteLine ("Socket {0}: Adjusting clock to {1} ms", GetName(sock), timeout);
 
                     Timer timer = null;
                     timer = new System.Threading.Timer(
@@ -132,24 +169,39 @@ namespace Tests
                 }
             }
 
-            static internal void Closed(PseudoTcp.PseudoTcpSocket sock, uint err, object data)
+            internal void Closed(PseudoTcp.PseudoTcpSocket sock, uint err, object data)
             {
-                //
+                Console.WriteLine("Closed {0} - err: {1}", GetName(sock), err);
             }
 
-            static void NotifyClock(PseudoTcp.PseudoTcpSocket sock)
+            void NotifyClock(PseudoTcp.PseudoTcpSocket sock)
             {
                 //g_debug ("Socket %p: Notifying clock", sock);
                 PseudoTcp.pseudo_tcp_socket_notify_clock(sock);
                 AdjustClock(sock);
             }
 
+            string GetName(PseudoTcp.PseudoTcpSocket sock)
+            {
+                if (sock == mLeft)
+                    return "Left";
+
+                return "Right";
+            }
+
             PseudoTcp.PseudoTcpSocket mLeft;
             PseudoTcp.PseudoTcpSocket mRight;
+
+            Random mRnd = new Random();
         }
 
         class Right
         {
+            internal Right(Left left)
+            {
+                mLeft = left;
+            }
+
             internal void Readable(PseudoTcp.PseudoTcpSocket sock, object data)
             {
                 byte[] buf = new byte[1024];
@@ -159,6 +211,9 @@ namespace Tests
                 {
                     len = PseudoTcp.pseudo_tcp_socket_recv (sock, buf, (uint) buf.Length);
 
+                    if (len < 0)
+                        break;
+
                     if (len == 0)
                     {
                         PseudoTcp.pseudo_tcp_socket_close (sock, false);
@@ -166,7 +221,7 @@ namespace Tests
                         break;
                     }
 
-                    // g_debug ("Read %d bytes", len);
+                    Console.WriteLine("Right: Read {0} bytes", len);
                     mStream.Write(buf, 0, len);
 
                     mTotalWroteToRight += len;
@@ -194,6 +249,11 @@ namespace Tests
                 get { return mTotalWroteToRight; }
             }
 
+            internal byte[] GetData()
+            {
+                return mStream.ToArray();
+            }
+
             int mTotalWroteToRight;
 
             MemoryStream mStream = new MemoryStream();
@@ -202,9 +262,10 @@ namespace Tests
 
         class Left
         {
-            internal Left(byte[] data)
+            internal Left(byte[] data, Common common)
             {
                 mStream = new MemoryStream(data);
+                mCommon = common;
             }
 
             internal void LeftOpened(PseudoTcp.PseudoTcpSocket sock, object data)
@@ -245,7 +306,7 @@ namespace Tests
                         break;
                     }
 
-                    wlen = PseudoTcp.pseudo_tcp_socket_send (sock, buf, (uint) len);
+                    wlen = PseudoTcp.pseudo_tcp_socket_send(sock, buf, (uint) len);
                     total += wlen;
                     mTotalReadFromLeft += wlen;
 
@@ -261,12 +322,14 @@ namespace Tests
                     }
                 }
 
-                Common.AdjustClock(sock);
+                mCommon.AdjustClock(sock);
             }
 
             int mTotalReadFromLeft;
 
             MemoryStream mStream;
+
+            Common mCommon;
         }
     }
 }
