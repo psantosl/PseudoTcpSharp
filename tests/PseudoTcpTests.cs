@@ -5,6 +5,8 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Text;
 
+using PseudoTcp;
+
 using NUnit.Framework;
 
 namespace Tests
@@ -15,11 +17,11 @@ namespace Tests
         [Test]
         public void BasicTest()
         {
-            PseudoTcp.PseudoTcpCallbacks cbsLeft = new PseudoTcp.PseudoTcpCallbacks();
-            PseudoTcp.PseudoTcpCallbacks cbsRight = new PseudoTcp.PseudoTcpCallbacks();
+            PseudoTcpSocket.PseudoTcpCallbacks cbsLeft = new PseudoTcpSocket.PseudoTcpCallbacks();
+            PseudoTcpSocket.PseudoTcpCallbacks cbsRight = new PseudoTcpSocket.PseudoTcpCallbacks();
 
-            PseudoTcp.PseudoTcpSocket leftSocket = PseudoTcp.pseudo_tcp_socket_new(0, cbsLeft);
-            PseudoTcp.PseudoTcpSocket rightSocket = PseudoTcp.pseudo_tcp_socket_new(0, cbsRight);
+            PseudoTcpSocket leftSocket = PseudoTcpSocket.pseudo_tcp_socket_new(0, cbsLeft);
+            PseudoTcpSocket rightSocket = PseudoTcpSocket.pseudo_tcp_socket_new(0, cbsRight);
 
             Common common = new Common(leftSocket, rightSocket);
 
@@ -51,10 +53,10 @@ namespace Tests
             cbsRight.PseudoTcpClosed = common.Closed;
             cbsRight.WritePacket = common.WritePacket;
 
-            PseudoTcp.pseudo_tcp_socket_notify_mtu(leftSocket, 1496);
-            PseudoTcp.pseudo_tcp_socket_notify_mtu(rightSocket, 1496);
+            PseudoTcpSocket.pseudo_tcp_socket_notify_mtu(leftSocket, 1496);
+            PseudoTcpSocket.pseudo_tcp_socket_notify_mtu(rightSocket, 1496);
 
-            PseudoTcp.pseudo_tcp_socket_connect(leftSocket);
+            PseudoTcpSocket.pseudo_tcp_socket_connect(leftSocket);
 
             common.AdjustClock(leftSocket);
             common.AdjustClock(rightSocket);
@@ -82,13 +84,13 @@ namespace Tests
 
         class Common
         {
-            internal Common(PseudoTcp.PseudoTcpSocket left, PseudoTcp.PseudoTcpSocket right)
+            internal Common(PseudoTcpSocket left, PseudoTcpSocket right)
             {
                 mLeft = left;
                 mRight = right;
             }
 
-            internal PseudoTcp.PseudoTcpWriteResult WritePacket(
+            internal PseudoTcpSocket.PseudoTcpWriteResult WritePacket(
                 PseudoTcp.PseudoTcpSocket sock,
                 byte[] buffer,
                 uint len,
@@ -99,7 +101,7 @@ namespace Tests
                 if (drop_rate < 15)
                 {
                     Console.WriteLine ("*********************Dropping packet from {0}", GetName(sock));
-                    return PseudoTcp.PseudoTcpWriteResult.WR_SUCCESS;
+                    return PseudoTcpSocket.PseudoTcpWriteResult.WR_SUCCESS;
                 }
 
                 byte[] newBuffer = new byte[len];
@@ -119,7 +121,7 @@ namespace Tests
                         else
                             Console.WriteLine("Right->Left {0}", newBuffer.Length);
 
-                        PseudoTcp.pseudo_tcp_socket_notify_packet(other, newBuffer, (uint)newBuffer.Length);
+                        PseudoTcpSocket.pseudo_tcp_socket_notify_packet(other, newBuffer, (uint)newBuffer.Length);
                         AdjustClock(other);
 
                         timer.Dispose();
@@ -128,16 +130,16 @@ namespace Tests
                     (long)0,
                     Timeout.Infinite);
 
-                return PseudoTcp.PseudoTcpWriteResult.WR_SUCCESS;
+                return PseudoTcpSocket.PseudoTcpWriteResult.WR_SUCCESS;
             }
 
             internal void AdjustClock(PseudoTcp.PseudoTcpSocket sock)
             {
                 ulong timeout = 0;
 
-                if (PseudoTcp.pseudo_tcp_socket_get_next_clock(sock, ref timeout))
+                if (PseudoTcpSocket.pseudo_tcp_socket_get_next_clock(sock, ref timeout))
                 {
-                    uint now = PseudoTcp.g_get_monotonic_time();
+                    uint now = PseudoTcpSocket.g_get_monotonic_time();
 
                     if (now < timeout)
                         timeout -= now;
@@ -169,7 +171,7 @@ namespace Tests
                 }
             }
 
-            internal void Closed(PseudoTcp.PseudoTcpSocket sock, uint err, object data)
+            internal void Closed(PseudoTcpSocket sock, uint err, object data)
             {
                 Console.WriteLine("Closed {0} - err: {1}", GetName(sock), err);
             }
@@ -177,7 +179,7 @@ namespace Tests
             void NotifyClock(PseudoTcp.PseudoTcpSocket sock)
             {
                 //g_debug ("Socket %p: Notifying clock", sock);
-                PseudoTcp.pseudo_tcp_socket_notify_clock(sock);
+                PseudoTcpSocket.pseudo_tcp_socket_notify_clock(sock);
                 AdjustClock(sock);
             }
 
@@ -209,14 +211,14 @@ namespace Tests
 
                 do
                 {
-                    len = PseudoTcp.pseudo_tcp_socket_recv (sock, buf, (uint) buf.Length);
+                    len = PseudoTcpSocket.pseudo_tcp_socket_recv(sock, buf, (uint)buf.Length);
 
                     if (len < 0)
                         break;
 
                     if (len == 0)
                     {
-                        PseudoTcp.pseudo_tcp_socket_close (sock, false);
+                        PseudoTcpSocket.pseudo_tcp_socket_close(sock, false);
 
                         break;
                     }
@@ -232,15 +234,15 @@ namespace Tests
                     if (mTotalWroteToRight == mLeft.TotalReadFromLeft && mLeft.Eof())
                     {
                         //g_assert (reading_done);
-                        PseudoTcp.pseudo_tcp_socket_close (sock, false);
+                        PseudoTcpSocket.pseudo_tcp_socket_close(sock, false);
                     }
 
                 } while (len > 0);
 
                 if (len == -1 &&
-                    PseudoTcp.pseudo_tcp_socket_get_error(sock) != PseudoTcp.EWOULDBLOCK)
+                    PseudoTcpSocket.pseudo_tcp_socket_get_error(sock) != PseudoTcpSocket.EWOULDBLOCK)
                 {
-                    Assert.Fail("Error reading from right socket {0}", PseudoTcp.pseudo_tcp_socket_get_error(sock));
+                    Assert.Fail("Error reading from right socket {0}", PseudoTcpSocket.pseudo_tcp_socket_get_error(sock));
                 }
             }
 
@@ -302,11 +304,11 @@ namespace Tests
                     if (len == 0)
                     {
                         // reading_done = TRUE;
-                        PseudoTcp.pseudo_tcp_socket_close (sock, false);
+                        PseudoTcpSocket.pseudo_tcp_socket_close(sock, false);
                         break;
                     }
 
-                    wlen = PseudoTcp.pseudo_tcp_socket_send(sock, buf, (uint) len);
+                    wlen = PseudoTcpSocket.pseudo_tcp_socket_send(sock, buf, (uint)len);
                     total += wlen;
                     mTotalReadFromLeft += wlen;
 
