@@ -153,26 +153,26 @@ namespace PseudoTcp
 
         // Standard MTUs
         static guint16[] PACKET_MAXIMUMS = new guint16[]{
-      65535,    // Theoretical maximum, Hyperchannel
-      32000,    // Nothing
-      17914,    // 16Mb IBM Token Ring
-      8166,   // IEEE 802.4
-      //4464,   // IEEE 802.5 (4Mb max)
-      4352,   // FDDI
-      //2048,   // Wideband Network
-      2002,   // IEEE 802.5 (4Mb recommended)
-      //1536,   // Expermental Ethernet Networks
-      //1500,   // Ethernet, Point-to-Point (default)
-      1492,   // IEEE 802.3
-      1006,   // SLIP, ARPANET
-      //576,    // X.25 Networks
-      //544,    // DEC IP Portal
-      //512,    // NETBIOS
-      508,    // IEEE 802/Source-Rt Bridge, ARCNET
-      296,    // Point-to-Point (low delay)
-      //68,     // Official minimum
-      0,      // End of list marker
-    };
+          65535,    // Theoretical maximum, Hyperchannel
+          32000,    // Nothing
+          17914,    // 16Mb IBM Token Ring
+          8166,   // IEEE 802.4
+          //4464,   // IEEE 802.5 (4Mb max)
+          4352,   // FDDI
+          //2048,   // Wideband Network
+          2002,   // IEEE 802.5 (4Mb recommended)
+          //1536,   // Expermental Ethernet Networks
+          //1500,   // Ethernet, Point-to-Point (default)
+          1492,   // IEEE 802.3
+          1006,   // SLIP, ARPANET
+          //576,    // X.25 Networks
+          //544,    // DEC IP Portal
+          //512,    // NETBIOS
+          508,    // IEEE 802/Source-Rt Bridge, ARCNET
+          296,    // Point-to-Point (low delay)
+          //68,     // Official minimum
+          0,      // End of list marker
+        };
 
         // FIXME: This is a reasonable MTU, but we should get it from the lower layer
         const int DEF_MTU = 1400;
@@ -351,34 +351,145 @@ namespace PseudoTcp
             internal gsize buffer_length;
             internal gsize data_length;
             internal gsize read_position;
-        }
 
 
-        static PseudoTcpFifo
-        pseudo_tcp_fifo_init(gsize size)
-        {
-            PseudoTcpFifo b = new PseudoTcpFifo();
-            b.buffer = new byte[size];
-            b.buffer_length = size;
-            return b;
-        }
-
-        static void
-        pseudo_tcp_fifo_clear(PseudoTcpFifo b)
-        {
-            if (b.buffer != null)
+            static internal PseudoTcpFifo
+            Init(gsize size)
             {
-                // g_slice_free1 (b.buffer_length, b.buffer);
-
+                PseudoTcpFifo b = new PseudoTcpFifo();
+                b.buffer = new byte[size];
+                b.buffer_length = size;
+                return b;
             }
-            b.buffer = null;
-            b.buffer_length = 0;
-        }
 
-        static gsize
-        pseudo_tcp_fifo_get_buffered(PseudoTcpFifo b)
-        {
-            return b.data_length;
+            static internal void
+            Clear(PseudoTcpFifo b)
+            {
+                if (b.buffer != null)
+                {
+                    // g_slice_free1 (b.buffer_length, b.buffer);
+
+                }
+                b.buffer = null;
+                b.buffer_length = 0;
+            }
+
+            static internal gsize
+            GetBuffered(PseudoTcpFifo b)
+            {
+                return b.data_length;
+            }
+
+            static internal gboolean
+            SetCapacity(PseudoTcpFifo b, gsize size)
+            {
+                if (b.data_length > size)
+                    return false;
+
+                if (size != b.data_length)
+                {
+                    guint8[] buffer = new guint8[size];
+                    gsize copy = b.data_length;
+                    gsize tail_copy = Math.Min(copy, b.buffer_length - b.read_position);
+
+                    memcpy(buffer, 0, b.buffer, b.read_position, tail_copy);
+                    memcpy(buffer, tail_copy, b.buffer, 0, copy - tail_copy);
+                    //g_slice_free1 (b.buffer_length, b.buffer);
+
+                    b.buffer = buffer;
+                    b.buffer_length = size;
+                    b.read_position = 0;
+                }
+
+                return true;
+            }
+
+            static internal void
+            ConsumeReadData(PseudoTcpFifo b, gsize size)
+            {
+                g_assert(size <= b.data_length);
+
+                b.read_position = (b.read_position + size) % b.buffer_length;
+                b.data_length -= size;
+            }
+
+            static internal void
+            ConsumeWriteBuffer(PseudoTcpFifo b, gsize size)
+            {
+                g_assert(size <= b.buffer_length - b.data_length);
+
+                b.data_length += size;
+            }
+
+            static internal gsize
+            GetWriteRemaining(PseudoTcpFifo b)
+            {
+                return b.buffer_length - b.data_length;
+            }
+
+            static internal gsize
+            ReadOffset(PseudoTcpFifo b, byte[] buffer, gsize bufferPos, gsize bytes,
+                gsize offset)
+            {
+                gsize available = b.data_length - offset;
+                gsize read_position = (b.read_position + offset) % b.buffer_length;
+                gsize copy = Math.Min(bytes, available);
+                gsize tail_copy = Math.Min(copy, b.buffer_length - read_position);
+
+                /* EOS */
+                if (offset >= b.data_length)
+                    return 0;
+
+                memcpy(buffer, bufferPos, b.buffer, read_position, tail_copy);
+                memcpy(buffer, tail_copy + bufferPos, b.buffer, 0, copy - tail_copy);
+
+                return copy;
+            }
+
+            static internal gsize
+            WriteOffset(PseudoTcpFifo b, byte[] buffer,
+                gsize bytes, gsize offset)
+            {
+                gsize available = b.buffer_length - b.data_length - offset;
+                gsize write_position = (b.read_position + b.data_length + offset)
+                    % b.buffer_length;
+                gsize copy = Math.Min(bytes, available);
+                gsize tail_copy = Math.Min(copy, b.buffer_length - write_position);
+
+                if (b.data_length + offset >= b.buffer_length)
+                {
+                    return 0;
+                }
+
+                memcpy(b.buffer, write_position, buffer, 0, tail_copy);
+                memcpy(b.buffer, 0, buffer, tail_copy, copy - tail_copy);
+
+                return copy;
+            }
+
+            static internal gsize
+            Read(PseudoTcpFifo b, byte[] buffer, gsize bytes)
+            {
+                gsize copy;
+
+                copy = ReadOffset(b, buffer, 0, bytes, 0);
+
+                b.read_position = (b.read_position + copy) % b.buffer_length;
+                b.data_length -= copy;
+
+                return copy;
+            }
+
+            static internal gsize
+            Write(PseudoTcpFifo b, byte[] buffer, gsize bytes)
+            {
+                gsize copy;
+
+                copy = WriteOffset(b, buffer, bytes, 0);
+                b.data_length += copy;
+
+                return copy;
+            }
         }
 
         static void memcpy(byte[] dst, gsize dstPos, byte[] src, gsize srcPos, gsize size)
@@ -389,29 +500,6 @@ namespace PseudoTcp
             Buffer.BlockCopy(src, (int)srcPos, dst, (int)dstPos, (int)size);
         }
 
-        static gboolean
-        pseudo_tcp_fifo_set_capacity(PseudoTcpFifo b, gsize size)
-        {
-            if (b.data_length > size)
-                return false;
-
-            if (size != b.data_length)
-            {
-                guint8[] buffer = new guint8[size];
-                gsize copy = b.data_length;
-                gsize tail_copy = Math.Min(copy, b.buffer_length - b.read_position);
-
-                memcpy(buffer, 0, b.buffer, b.read_position, tail_copy);
-                memcpy(buffer, tail_copy, b.buffer, 0, copy - tail_copy);
-                //g_slice_free1 (b.buffer_length, b.buffer);
-
-                b.buffer = buffer;
-                b.buffer_length = size;
-                b.read_position = 0;
-            }
-
-            return true;
-        }
 
         static void g_assert(bool cond)
         {
@@ -420,94 +508,6 @@ namespace PseudoTcp
 
             throw new Exception("g_assert");
         }
-
-        static void
-        pseudo_tcp_fifo_consume_read_data(PseudoTcpFifo b, gsize size)
-        {
-            g_assert(size <= b.data_length);
-
-            b.read_position = (b.read_position + size) % b.buffer_length;
-            b.data_length -= size;
-        }
-
-        static void
-        pseudo_tcp_fifo_consume_write_buffer(PseudoTcpFifo b, gsize size)
-        {
-            g_assert(size <= b.buffer_length - b.data_length);
-
-            b.data_length += size;
-        }
-
-        static gsize
-        pseudo_tcp_fifo_get_write_remaining(PseudoTcpFifo b)
-        {
-            return b.buffer_length - b.data_length;
-        }
-
-        static gsize
-        pseudo_tcp_fifo_read_offset(PseudoTcpFifo b, byte[] buffer, gsize bufferPos, gsize bytes,
-            gsize offset)
-        {
-            gsize available = b.data_length - offset;
-            gsize read_position = (b.read_position + offset) % b.buffer_length;
-            gsize copy = Math.Min(bytes, available);
-            gsize tail_copy = Math.Min(copy, b.buffer_length - read_position);
-
-            /* EOS */
-            if (offset >= b.data_length)
-                return 0;
-
-            memcpy(buffer, bufferPos, b.buffer, read_position, tail_copy);
-            memcpy(buffer, tail_copy + bufferPos, b.buffer, 0, copy - tail_copy);
-
-            return copy;
-        }
-
-        static gsize
-        pseudo_tcp_fifo_write_offset(PseudoTcpFifo b, byte[] buffer,
-            gsize bytes, gsize offset)
-        {
-            gsize available = b.buffer_length - b.data_length - offset;
-            gsize write_position = (b.read_position + b.data_length + offset)
-                % b.buffer_length;
-            gsize copy = Math.Min(bytes, available);
-            gsize tail_copy = Math.Min(copy, b.buffer_length - write_position);
-
-            if (b.data_length + offset >= b.buffer_length)
-            {
-                return 0;
-            }
-
-            memcpy(b.buffer, write_position, buffer, 0, tail_copy);
-            memcpy(b.buffer, 0, buffer, tail_copy, copy - tail_copy);
-
-            return copy;
-        }
-
-        static gsize
-        pseudo_tcp_fifo_read(PseudoTcpFifo b, byte[] buffer, gsize bytes)
-        {
-            gsize copy;
-
-            copy = pseudo_tcp_fifo_read_offset(b, buffer, 0, bytes, 0);
-
-            b.read_position = (b.read_position + copy) % b.buffer_length;
-            b.data_length -= copy;
-
-            return copy;
-        }
-
-        static gsize
-        pseudo_tcp_fifo_write(PseudoTcpFifo b, byte[] buffer, gsize bytes)
-        {
-            gsize copy;
-
-            copy = pseudo_tcp_fifo_write_offset(b, buffer, bytes, 0);
-            b.data_length += copy;
-
-            return copy;
-        }
-
 
         //////////////////////////////////////////////////////////////////////
         // PseudoTcp
@@ -886,9 +886,9 @@ namespace PseudoTcp
             priv.error = 0;
 
             priv.rbuf_len = DEFAULT_RCV_BUF_SIZE;
-            priv.rbuf = pseudo_tcp_fifo_init(priv.rbuf_len);
+            priv.rbuf = PseudoTcpFifo.Init(priv.rbuf_len);
             priv.sbuf_len = DEFAULT_SND_BUF_SIZE;
-            priv.sbuf = pseudo_tcp_fifo_init(priv.sbuf_len);
+            priv.sbuf = PseudoTcpFifo.Init(priv.sbuf_len);
 
             priv.state = PseudoTcpState.TCP_LISTEN;
             priv.conv = 0;
@@ -1289,7 +1289,7 @@ namespace PseudoTcp
                 return false;
             }
 
-            snd_buffered = pseudo_tcp_fifo_get_buffered(priv.sbuf);
+            snd_buffered = PseudoTcpFifo.GetBuffered(priv.sbuf);
             if ((priv.shutdown == Shutdown.SD_GRACEFUL)
                 && ((priv.state != PseudoTcpState.TCP_ESTABLISHED)
                     || ((snd_buffered == 0) && (priv.t_ack == 0))))
@@ -1385,7 +1385,7 @@ namespace PseudoTcp
             if (len == 0)
                 return 0;
 
-            bytesread = pseudo_tcp_fifo_read(priv.rbuf, buffer, len);
+            bytesread = PseudoTcpFifo.Read(priv.rbuf, buffer, len);
 
             // If there's no data in |m_rbuf|.
             if (bytesread == 0 &&
@@ -1397,7 +1397,7 @@ namespace PseudoTcp
                 return -1;
             }
 
-            available_space = pseudo_tcp_fifo_get_write_remaining(priv.rbuf);
+            available_space = PseudoTcpFifo.GetWriteRemaining(priv.rbuf);
 
             if (available_space - priv.rcv_wnd >=
                 Math.Min(priv.rbuf_len / 2, priv.mss))
@@ -1430,7 +1430,7 @@ namespace PseudoTcp
                 return -1;
             }
 
-            available_space = pseudo_tcp_fifo_get_write_remaining(priv.sbuf);
+            available_space = PseudoTcpFifo.GetWriteRemaining(priv.sbuf);
 
             if (available_space == 0)
             {
@@ -1570,7 +1570,7 @@ namespace PseudoTcp
             PseudoTcpSocketPrivate priv = self.priv;
             gsize available_space;
 
-            available_space = pseudo_tcp_fifo_get_write_remaining(priv.sbuf);
+            available_space = PseudoTcpFifo.GetWriteRemaining(priv.sbuf);
             if (len > available_space)
             {
                 g_assert(flags == TcpFlags.FLAG_NONE);
@@ -1588,7 +1588,7 @@ namespace PseudoTcp
             else
             {
                 SSegment sseg = new SSegment();
-                gsize snd_buffered = pseudo_tcp_fifo_get_buffered(priv.sbuf);
+                gsize snd_buffered = PseudoTcpFifo.GetBuffered(priv.sbuf);
 
                 sseg.seq = (size_t)(priv.snd_una + snd_buffered);
                 sseg.len = len;
@@ -1598,7 +1598,7 @@ namespace PseudoTcp
             }
 
             //LOG(LS_INFO) << "PseudoTcp::queue - priv.slen = " << priv.slen;
-            return pseudo_tcp_fifo_write(priv.sbuf, data, len);
+            return PseudoTcpFifo.Write(priv.sbuf, data, len);
         }
 
         // Creates a packet and submits it to the network. This method can either
@@ -1662,7 +1662,7 @@ namespace PseudoTcp
             {
                 gsize bytes_read;
 
-                bytes_read = pseudo_tcp_fifo_read_offset(priv.sbuf, buffer, HEADER_SIZE,
+                bytes_read = PseudoTcpFifo.ReadOffset(priv.sbuf, buffer, HEADER_SIZE,
                     len, offset);
                 g_assert(bytes_read == len);
             }
@@ -1969,7 +1969,7 @@ namespace PseudoTcp
                     nAcked--;
                 }
 
-                pseudo_tcp_fifo_consume_read_data(priv.sbuf, nAcked);
+                PseudoTcpFifo.ConsumeReadData(priv.sbuf, nAcked);
 
                 for (nFree = nAcked; nFree > 0; )
                 {
@@ -2227,7 +2227,7 @@ namespace PseudoTcp
             // window.  We'd like to notify the app when we are halfway to that point.
             kIdealRefillSize = (priv.sbuf_len + priv.rbuf_len) / 2;
 
-            snd_buffered = pseudo_tcp_fifo_get_buffered(priv.sbuf);
+            snd_buffered = PseudoTcpFifo.GetBuffered(priv.sbuf);
             if (priv.bWriteEnable && snd_buffered < kIdealRefillSize)
             {
                 priv.bWriteEnable = false;
@@ -2304,7 +2304,7 @@ namespace PseudoTcp
                 }
             }
 
-            available_space = pseudo_tcp_fifo_get_write_remaining(priv.rbuf);
+            available_space = PseudoTcpFifo.GetWriteRemaining(priv.rbuf);
 
             if ((seg.seq + seg.len - priv.rcv_nxt) > available_space)
             {
@@ -2339,14 +2339,14 @@ namespace PseudoTcp
                     guint32 nOffset = seg.seq - priv.rcv_nxt;
                     gsize res;
 
-                    res = pseudo_tcp_fifo_write_offset(priv.rbuf, seg.data,
+                    res = PseudoTcpFifo.WriteOffset(priv.rbuf, seg.data,
                         seg.len, nOffset);
                     g_assert(res == seg.len);
 
                     if (seg.seq == priv.rcv_nxt)
                     {
 
-                        pseudo_tcp_fifo_consume_write_buffer(priv.rbuf, seg.len);
+                        PseudoTcpFifo.ConsumeWriteBuffer(priv.rbuf, seg.len);
                         priv.rcv_nxt += seg.len;
                         priv.rcv_wnd -= seg.len;
                         bNewData = true;
@@ -2363,7 +2363,7 @@ namespace PseudoTcp
                                 sflags = SendFlags.sfImmediateAck; // (Fast Recovery)
                                 DEBUG(self, PseudoTcpDebugLevel.PSEUDO_TCP_DEBUG_NORMAL, "Recovered {0} bytes ({1} . {2})",
                                     nAdjust, priv.rcv_nxt, priv.rcv_nxt + nAdjust);
-                                pseudo_tcp_fifo_consume_write_buffer(priv.rbuf, nAdjust);
+                                PseudoTcpFifo.ConsumeWriteBuffer(priv.rbuf, nAdjust);
                                 priv.rcv_nxt += nAdjust;
                                 priv.rcv_wnd -= nAdjust;
                             }
@@ -2556,7 +2556,7 @@ namespace PseudoTcp
                 nWindow = Math.Min(priv.snd_wnd, cwnd);
                 nInFlight = priv.snd_nxt - priv.snd_una;
                 nUseable = (nInFlight < nWindow) ? (nWindow - nInFlight) : 0;
-                snd_buffered = pseudo_tcp_fifo_get_buffered(priv.sbuf);
+                snd_buffered = PseudoTcpFifo.GetBuffered(priv.sbuf);
                 if (snd_buffered < nInFlight)  /* iff a FIN has been sent */
                     nAvailable = 0;
                 else
@@ -2577,7 +2577,7 @@ namespace PseudoTcp
 
                 if (bFirst)
                 {
-                    gsize available_space = pseudo_tcp_fifo_get_write_remaining(priv.sbuf);
+                    gsize available_space = PseudoTcpFifo.GetWriteRemaining(priv.sbuf);
 
                     bFirst = false;
                     /* COMMENTED OUT
@@ -2882,7 +2882,7 @@ namespace PseudoTcp
             PseudoTcpSocketPrivate priv = self.priv;
 
             priv.sbuf_len = new_size;
-            pseudo_tcp_fifo_set_capacity(priv.sbuf, new_size);
+            PseudoTcpFifo.SetCapacity(priv.sbuf, new_size);
         }
 
 
@@ -2907,7 +2907,7 @@ namespace PseudoTcp
 
             // Determine the proper size of the buffer.
             new_size <<= scale_factor;
-            result = pseudo_tcp_fifo_set_capacity(priv.rbuf, new_size);
+            result = PseudoTcpFifo.SetCapacity(priv.rbuf, new_size);
 
             // Make sure the new buffer is large enough to contain data in the old
             // buffer. This should always be true because this method is called either
@@ -2918,7 +2918,7 @@ namespace PseudoTcp
             priv.rwnd_scale = scale_factor;
             priv.ssthresh = new_size;
 
-            available_space = pseudo_tcp_fifo_get_write_remaining(priv.rbuf);
+            available_space = PseudoTcpFifo.GetWriteRemaining(priv.rbuf);
             priv.rcv_wnd = available_space;
         }
 
@@ -2928,7 +2928,7 @@ namespace PseudoTcp
             PseudoTcpSocketPrivate priv = self.priv;
 
 #warning this cast to gint was not in C code
-            return (gint)pseudo_tcp_fifo_get_buffered(priv.rbuf);
+            return (gint)PseudoTcpFifo.GetBuffered(priv.rbuf);
         }
 
         bool
@@ -2945,7 +2945,7 @@ namespace PseudoTcp
 
             if (!pseudo_tcp_state_has_sent_fin(priv.state))
             {
-                ret = pseudo_tcp_fifo_get_write_remaining(priv.sbuf);
+                ret = PseudoTcpFifo.GetWriteRemaining(priv.sbuf);
             }
             else
             {
