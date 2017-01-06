@@ -53,10 +53,10 @@ namespace Tests
             cbsRight.PseudoTcpClosed = common.Closed;
             cbsRight.WritePacket = common.WritePacket;
 
-            PseudoTcpSocket.pseudo_tcp_socket_notify_mtu(leftSocket, 1496);
-            PseudoTcpSocket.pseudo_tcp_socket_notify_mtu(rightSocket, 1496);
+            leftSocket.pseudo_tcp_socket_notify_mtu(1496);
+            rightSocket.pseudo_tcp_socket_notify_mtu(1496);
 
-            PseudoTcpSocket.pseudo_tcp_socket_connect(leftSocket);
+            leftSocket.pseudo_tcp_socket_connect();
 
             common.AdjustClock(leftSocket);
             common.AdjustClock(rightSocket);
@@ -121,7 +121,7 @@ namespace Tests
                         else
                             Console.WriteLine("Right->Left {0}", newBuffer.Length);
 
-                        PseudoTcpSocket.pseudo_tcp_socket_notify_packet(other, newBuffer, (uint)newBuffer.Length);
+                        other.pseudo_tcp_socket_notify_packet(newBuffer, (uint)newBuffer.Length);
                         AdjustClock(other);
 
                         timer.Dispose();
@@ -137,7 +137,7 @@ namespace Tests
             {
                 ulong timeout = 0;
 
-                if (PseudoTcpSocket.pseudo_tcp_socket_get_next_clock(sock, ref timeout))
+                if (sock.pseudo_tcp_socket_get_next_clock(ref timeout))
                 {
                     uint now = PseudoTcpSocket.g_get_monotonic_time();
 
@@ -179,7 +179,7 @@ namespace Tests
             void NotifyClock(PseudoTcp.PseudoTcpSocket sock)
             {
                 //g_debug ("Socket %p: Notifying clock", sock);
-                PseudoTcpSocket.pseudo_tcp_socket_notify_clock(sock);
+                sock.pseudo_tcp_socket_notify_clock();
                 AdjustClock(sock);
             }
 
@@ -211,14 +211,14 @@ namespace Tests
 
                 do
                 {
-                    len = PseudoTcpSocket.pseudo_tcp_socket_recv(sock, buf, (uint)buf.Length);
+                    len = sock.pseudo_tcp_socket_recv(buf, (uint)buf.Length);
 
                     if (len < 0)
                         break;
 
                     if (len == 0)
                     {
-                        PseudoTcpSocket.pseudo_tcp_socket_close(sock, false);
+                        sock.pseudo_tcp_socket_close(false);
 
                         break;
                     }
@@ -234,7 +234,7 @@ namespace Tests
                     if (mTotalWroteToRight == mLeft.TotalReadFromLeft && mLeft.Eof())
                     {
                         //g_assert (reading_done);
-                        PseudoTcpSocket.pseudo_tcp_socket_close(sock, false);
+                        sock.pseudo_tcp_socket_close(false);
                     }
 
                 } while (len > 0);
@@ -304,11 +304,11 @@ namespace Tests
                     if (len == 0)
                     {
                         // reading_done = TRUE;
-                        PseudoTcpSocket.pseudo_tcp_socket_close(sock, false);
+                        sock.pseudo_tcp_socket_close(false);
                         break;
                     }
 
-                    wlen = PseudoTcpSocket.pseudo_tcp_socket_send(sock, buf, (uint)len);
+                    wlen = sock.pseudo_tcp_socket_send(buf, (uint)len);
                     total += wlen;
                     mTotalReadFromLeft += wlen;
 
