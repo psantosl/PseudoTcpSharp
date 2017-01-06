@@ -1148,17 +1148,63 @@ public class PseudoTcp
       }
     }
 
-    static int g_queue_get_length(List<SSegment> queue)
+    static class GQueue
     {
-        return queue.Count;
-    }
+        static internal SSegment PeekHead(List<SSegment> queue)
+        {
+            if (queue.Count == 0)
+                return null;
 
-    static SSegment g_queue_peek_tail(List<SSegment> list)
-    {
-        if (list.Count == 0)
-            return null;
+            return queue[0];
+        }
 
-        return list[list.Count - 1];
+        static internal void PushTail(List<SSegment> queue, SSegment segment)
+        {
+            queue.Add(segment);
+        }
+
+        static internal void InsertAfter(List<SSegment> list, int pos, SSegment segment)
+        {
+            if (pos >= list.Count - 1)
+            {
+                list.Add(segment);
+
+                return;
+            }
+
+            list.Insert(pos + 1, segment);
+        }
+
+        static internal int Find(List<SSegment> list, SSegment toFind)
+        {
+            return list.IndexOf(toFind);
+        }
+
+        static internal SSegment PopHead(List<SSegment> queue)
+        {
+            if (queue.Count == 0)
+                return null;
+
+            SSegment result = queue[0];
+
+            queue.RemoveAt(0);
+
+            return result;
+        }
+
+
+        static internal int GetLength(List<SSegment> queue)
+        {
+            return queue.Count;
+        }
+
+        static internal SSegment PeekTail(List<SSegment> list)
+        {
+            if (list.Count == 0)
+                return null;
+
+            return list[list.Count - 1];
+        }
     }
 
     static void g_assert_not_reached ()
@@ -1166,47 +1212,6 @@ public class PseudoTcp
         throw new Exception("g_assert_not_reached");
     }
 
-    static SSegment g_queue_peek_head(List<SSegment> queue)
-    {
-        if (queue.Count == 0)
-            return null;
-
-        return queue[0];
-    }
-
-    static void g_queue_push_tail (List<SSegment> queue, SSegment segment)
-    {
-        queue.Add(segment);
-    }
-
-    static void g_queue_insert_after(List<SSegment> list, int pos, SSegment segment)
-    {
-        if (pos >= list.Count -1)
-        {
-            list.Add(segment);
-
-            return;
-        }
-
-        list.Insert(pos + 1, segment);
-    }
-
-    static int g_queue_find(List<SSegment> list, SSegment toFind)
-    {
-        return list.IndexOf(toFind);
-    }
-
-    static SSegment g_queue_pop_head(List<SSegment> queue)
-    {
-        if (queue.Count == 0)
-            return null;
-
-        SSegment result = queue[0];
-
-        queue.RemoveAt(0);
-
-        return result;
-    }
 
     static public void
     pseudo_tcp_socket_notify_clock(PseudoTcpSocket self)
@@ -1240,7 +1245,7 @@ public class PseudoTcp
       // Check if it's time to retransmit a segment
       if ((priv.rto_base != 0) &&
           (time_diff(priv.rto_base + priv.rx_rto, now) <= 0)) {
-        if (g_queue_get_length (priv.slist) == 0) {
+        if (GQueue.GetLength (priv.slist) == 0) {
           g_assert_not_reached ();
         } else {
           // Note: (priv.slist.front().xmit == 0)) {
@@ -1253,7 +1258,7 @@ public class PseudoTcp
               "timeout retransmit (rto: {0}) (rto_base: {1}) (now: {2}) (dup_acks: {3})",
               priv.rx_rto, priv.rto_base, now, (uint) priv.dup_acks);
 
-          transmit_status = transmit(self, g_queue_peek_head (priv.slist), now);
+          transmit_status = transmit(self, GQueue.PeekHead (priv.slist), now);
           if (transmit_status != 0) {
             DEBUG (self, PseudoTcpDebugLevel.PSEUDO_TCP_DEBUG_NORMAL,
                 "Error transmitting segment. Closing down.");
@@ -1658,10 +1663,10 @@ public class PseudoTcp
 
       // We can concatenate data if the last segment is the same type
       // (control v. regular data), and has not been transmitted yet
-      if ((g_queue_get_length (priv.slist) != 0) &&
-          ((g_queue_peek_tail (priv.slist)).flags == flags) &&
-          ((g_queue_peek_tail (priv.slist)).xmit == 0)) {
-        (g_queue_peek_tail (priv.slist)).len += len;
+      if ((GQueue.GetLength(priv.slist) != 0) &&
+          ((GQueue.PeekTail (priv.slist)).flags == flags) &&
+          ((GQueue.PeekTail (priv.slist)).xmit == 0)) {
+        (GQueue.PeekTail (priv.slist)).len += len;
       } else {
         SSegment sseg = new SSegment();
         gsize snd_buffered = pseudo_tcp_fifo_get_buffered (priv.sbuf);
@@ -1669,8 +1674,8 @@ public class PseudoTcp
         sseg.seq = (size_t) (priv.snd_una + snd_buffered);
         sseg.len = len;
         sseg.flags = flags;
-        g_queue_push_tail (priv.slist, sseg);
-        g_queue_push_tail (priv.unsent_slist, sseg);
+        GQueue.PushTail(priv.slist, sseg);
+        GQueue.PushTail(priv.unsent_slist, sseg);
       }
 
       //LOG(LS_INFO) << "PseudoTcp::queue - priv.slen = " << priv.slen;
@@ -2022,8 +2027,8 @@ public class PseudoTcp
         for (nFree = nAcked; nFree > 0; ) {
           SSegment data;
 
-          g_assert(g_queue_get_length (priv.slist) != 0);
-          data = (SSegment ) g_queue_peek_head (priv.slist);
+          g_assert(GQueue.GetLength(priv.slist) != 0);
+          data = (SSegment)GQueue.PeekHead(priv.slist);
 
           if (nFree < data.len) {
             data.len -= nFree;
@@ -2035,7 +2040,7 @@ public class PseudoTcp
             }
             nFree -= data.len;
             //g_slice_free (SSegment, data);
-            g_queue_pop_head (priv.slist);
+            GQueue.PopHead(priv.slist);
           }
         }
 
@@ -2052,7 +2057,7 @@ public class PseudoTcp
             int transmit_status;
 
             DEBUG (self, PseudoTcpDebugLevel.PSEUDO_TCP_DEBUG_NORMAL, "recovery retransmit");
-            transmit_status = transmit(self, g_queue_peek_head (priv.slist), now);
+            transmit_status = transmit(self, GQueue.PeekHead(priv.slist), now);
             if (transmit_status != 0) {
               DEBUG (self, PseudoTcpDebugLevel.PSEUDO_TCP_DEBUG_NORMAL,
                   "Error transmitting recovery retransmit segment. Closing down.");
@@ -2095,7 +2100,7 @@ public class PseudoTcp
               DEBUG(self, PseudoTcpDebugLevel.PSEUDO_TCP_DEBUG_NORMAL, "recovery retransmit");
 
 #warning the cast was not here in C code
-              transmit_status = (guint32)transmit(self, g_queue_peek_head (priv.slist),
+              transmit_status = (guint32)transmit(self, GQueue.PeekHead(priv.slist),
                   now);
               if (transmit_status != 0) {
                   DEBUG(self, PseudoTcpDebugLevel.PSEUDO_TCP_DEBUG_NORMAL,
@@ -2453,16 +2458,16 @@ public class PseudoTcp
         DEBUG (self, PseudoTcpDebugLevel.PSEUDO_TCP_DEBUG_NORMAL, "mss reduced to {0}", priv.mss);
 
         segment.len = nTransmit;
-        g_queue_insert_after (priv.slist,
-            g_queue_find (priv.slist, segment), subseg);
+        GQueue.InsertAfter(priv.slist,
+            GQueue.Find(priv.slist, segment), subseg);
         if (subseg.xmit == 0)
-          g_queue_insert_after (priv.unsent_slist,
-              g_queue_find (priv.unsent_slist, segment), subseg);
+            GQueue.InsertAfter(priv.unsent_slist,
+                GQueue.Find(priv.unsent_slist, segment), subseg);
       }
 
       if (segment.xmit == 0) {
-        g_assert (g_queue_peek_head (priv.unsent_slist) == segment);
-        g_queue_pop_head (priv.unsent_slist);
+        g_assert (GQueue.PeekHead (priv.unsent_slist) == segment);
+        GQueue.PopHead(priv.unsent_slist);
         priv.snd_nxt += segment.len;
 
         /* FIN flags require acknowledgement. */
@@ -2567,7 +2572,7 @@ public class PseudoTcp
         }
 
         // Find the next segment to transmit
-        sseg = g_queue_peek_head(priv.unsent_slist);
+        sseg = GQueue.PeekHead(priv.unsent_slist);
 
         if (sseg == null)
           return;
@@ -2580,8 +2585,8 @@ public class PseudoTcp
           subseg.flags = sseg.flags;
 
           sseg.len = nAvailable;
-          g_queue_insert_after (priv.unsent_slist, 0, subseg);
-          g_queue_insert_after (priv.slist, g_queue_find (priv.slist, sseg),
+          GQueue.InsertAfter(priv.unsent_slist, 0, subseg);
+          GQueue.InsertAfter(priv.slist, GQueue.Find(priv.slist, sseg),
               subseg);
         }
 
