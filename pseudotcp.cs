@@ -109,7 +109,7 @@ namespace PseudoTcp
          *
          * Since: 0.0.11
          */
-        public enum PseudoTcpWriteResult
+        public enum WriteResult
         {
             WR_SUCCESS,
             WR_TOO_LARGE,
@@ -352,9 +352,7 @@ namespace PseudoTcp
             internal gsize data_length;
             internal gsize read_position;
 
-
-            static internal PseudoTcpFifo
-            Init(gsize size)
+            static internal PseudoTcpFifo Init(gsize size)
             {
                 PseudoTcpFifo b = new PseudoTcpFifo();
                 b.buffer = new byte[size];
@@ -362,8 +360,7 @@ namespace PseudoTcp
                 return b;
             }
 
-            static internal void
-            Clear(PseudoTcpFifo b)
+            static internal void Clear(PseudoTcpFifo b)
             {
                 if (b.buffer != null)
                 {
@@ -374,14 +371,12 @@ namespace PseudoTcp
                 b.buffer_length = 0;
             }
 
-            static internal gsize
-            GetBuffered(PseudoTcpFifo b)
+            static internal gsize GetBuffered(PseudoTcpFifo b)
             {
                 return b.data_length;
             }
 
-            static internal gboolean
-            SetCapacity(PseudoTcpFifo b, gsize size)
+            static internal gboolean SetCapacity(PseudoTcpFifo b, gsize size)
             {
                 if (b.data_length > size)
                     return false;
@@ -404,8 +399,7 @@ namespace PseudoTcp
                 return true;
             }
 
-            static internal void
-            ConsumeReadData(PseudoTcpFifo b, gsize size)
+            static internal void ConsumeReadData(PseudoTcpFifo b, gsize size)
             {
                 g_assert(size <= b.data_length);
 
@@ -413,22 +407,19 @@ namespace PseudoTcp
                 b.data_length -= size;
             }
 
-            static internal void
-            ConsumeWriteBuffer(PseudoTcpFifo b, gsize size)
+            static internal void ConsumeWriteBuffer(PseudoTcpFifo b, gsize size)
             {
                 g_assert(size <= b.buffer_length - b.data_length);
 
                 b.data_length += size;
             }
 
-            static internal gsize
-            GetWriteRemaining(PseudoTcpFifo b)
+            static internal gsize GetWriteRemaining(PseudoTcpFifo b)
             {
                 return b.buffer_length - b.data_length;
             }
 
-            static internal gsize
-            ReadOffset(PseudoTcpFifo b, byte[] buffer, gsize bufferPos, gsize bytes,
+            static internal gsize ReadOffset(PseudoTcpFifo b, byte[] buffer, gsize bufferPos, gsize bytes,
                 gsize offset)
             {
                 gsize available = b.data_length - offset;
@@ -446,8 +437,7 @@ namespace PseudoTcp
                 return copy;
             }
 
-            static internal gsize
-            WriteOffset(PseudoTcpFifo b, byte[] buffer,
+            static internal gsize WriteOffset(PseudoTcpFifo b, byte[] buffer,
                 gsize bytes, gsize offset)
             {
                 gsize available = b.buffer_length - b.data_length - offset;
@@ -467,8 +457,7 @@ namespace PseudoTcp
                 return copy;
             }
 
-            static internal gsize
-            Read(PseudoTcpFifo b, byte[] buffer, gsize bytes)
+            static internal gsize Read(PseudoTcpFifo b, byte[] buffer, gsize bytes)
             {
                 gsize copy;
 
@@ -480,8 +469,7 @@ namespace PseudoTcp
                 return copy;
             }
 
-            static internal gsize
-            Write(PseudoTcpFifo b, byte[] buffer, gsize bytes)
+            static internal gsize Write(PseudoTcpFifo b, byte[] buffer, gsize bytes)
             {
                 gsize copy;
 
@@ -514,7 +502,7 @@ namespace PseudoTcp
         //////////////////////////////////////////////////////////////////////
 
         /* Only used if FIN-ACK support is disabled. */
-        internal enum Shutdown
+        internal enum ShutdownType
         {
             SD_NONE,
             SD_GRACEFUL,
@@ -597,19 +585,115 @@ namespace PseudoTcp
          *
          * Since: 0.0.11
          */
-        internal enum PseudoTcpState
+
+        internal static class PseudoTcpState
         {
-            TCP_LISTEN,
-            TCP_SYN_SENT,
-            TCP_SYN_RECEIVED,
-            TCP_ESTABLISHED,
-            TCP_CLOSED,
-            TCP_FIN_WAIT_1,
-            TCP_FIN_WAIT_2,
-            TCP_CLOSING,
-            TCP_TIME_WAIT,
-            TCP_CLOSE_WAIT,
-            TCP_LAST_ACK,
+            internal enum Values
+            {
+                TCP_LISTEN,
+                TCP_SYN_SENT,
+                TCP_SYN_RECEIVED,
+                TCP_ESTABLISHED,
+                TCP_CLOSED,
+                TCP_FIN_WAIT_1,
+                TCP_FIN_WAIT_2,
+                TCP_CLOSING,
+                TCP_TIME_WAIT,
+                TCP_CLOSE_WAIT,
+                TCP_LAST_ACK,
+            }
+
+            /* State names are capitalised and formatted as in RFC 793. */
+            static internal string GetName(Values state)
+            {
+                switch (state)
+                {
+                    case Values.TCP_LISTEN: return "LISTEN";
+                    case Values.TCP_SYN_SENT: return "SYN-SENT";
+                    case Values.TCP_SYN_RECEIVED: return "SYN-RECEIVED";
+                    case Values.TCP_ESTABLISHED: return "ESTABLISHED";
+                    case Values.TCP_CLOSED: return "CLOSED";
+                    case Values.TCP_FIN_WAIT_1: return "FIN-WAIT-1";
+                    case Values.TCP_FIN_WAIT_2: return "FIN-WAIT-2";
+                    case Values.TCP_CLOSING: return "CLOSING";
+                    case Values.TCP_TIME_WAIT: return "TIME-WAIT";
+                    case Values.TCP_CLOSE_WAIT: return "CLOSE-WAIT";
+                    case Values.TCP_LAST_ACK: return "LAST-ACK";
+                    default: return "UNKNOWN";
+                }
+            }
+
+            /* True iff the @state requires that a FIN has already been sent by this
+             * host. */
+            static internal gboolean HasSentFin(Values state)
+            {
+                switch (state)
+                {
+                    case Values.TCP_LISTEN:
+                    case Values.TCP_SYN_SENT:
+                    case Values.TCP_SYN_RECEIVED:
+                    case Values.TCP_ESTABLISHED:
+                    case Values.TCP_CLOSE_WAIT:
+                        return false;
+                    case Values.TCP_CLOSED:
+                    case Values.TCP_FIN_WAIT_1:
+                    case Values.TCP_FIN_WAIT_2:
+                    case Values.TCP_CLOSING:
+                    case Values.TCP_TIME_WAIT:
+                    case Values.TCP_LAST_ACK:
+                        return true;
+                    default:
+                        return false;
+                }
+            }
+
+            /* True iff the @state requires that a FIN has already been received from the
+             * peer. */
+            static internal gboolean HasReceivedFin(Values state)
+            {
+                switch (state)
+                {
+                    case Values.TCP_LISTEN:
+                    case Values.TCP_SYN_SENT:
+                    case Values.TCP_SYN_RECEIVED:
+                    case Values.TCP_ESTABLISHED:
+                    case Values.TCP_FIN_WAIT_1:
+                    case Values.TCP_FIN_WAIT_2:
+                        return false;
+                    case Values.TCP_CLOSED:
+                    case Values.TCP_CLOSING:
+                    case Values.TCP_TIME_WAIT:
+                    case Values.TCP_CLOSE_WAIT:
+                    case Values.TCP_LAST_ACK:
+                        return true;
+                    default:
+                        return false;
+                }
+            }
+
+            /* True iff the @state requires that a FIN-ACK has already been received from
+             * the peer. */
+            static internal gboolean HasReceivedFinAck(Values state)
+            {
+                switch (state)
+                {
+                    case Values.TCP_LISTEN:
+                    case Values.TCP_SYN_SENT:
+                    case Values.TCP_SYN_RECEIVED:
+                    case Values.TCP_ESTABLISHED:
+                    case Values.TCP_FIN_WAIT_1:
+                    case Values.TCP_FIN_WAIT_2:
+                    case Values.TCP_CLOSING:
+                    case Values.TCP_CLOSE_WAIT:
+                    case Values.TCP_LAST_ACK:
+                        return false;
+                    case Values.TCP_CLOSED:
+                    case Values.TCP_TIME_WAIT:
+                        return true;
+                    default:
+                        return false;
+                }
+            }
         }
 
         /**
@@ -627,7 +711,7 @@ namespace PseudoTcp
             *
             * Since: 0.0.11
             */
-        public class PseudoTcpCallbacks
+        public class Callbacks
         {
             /*gpointer user_data;
             void  (*PseudoTcpOpened) (PseudoTcpSocket *tcp, gpointer data);
@@ -639,7 +723,7 @@ namespace PseudoTcp
 
             public delegate void Callback(PseudoTcpSocket tcp, object data);
             public delegate void ClosedCallback(PseudoTcpSocket tcp, uint error, object data);
-            public delegate PseudoTcpWriteResult WritePacketCallback(PseudoTcpSocket tcp, byte[] buffer, uint len, object data);
+            public delegate WriteResult WritePacketCallback(PseudoTcpSocket tcp, byte[] buffer, uint len, object data);
 
             public object user_data;
 
@@ -657,14 +741,14 @@ namespace PseudoTcp
 
         internal class PseudoTcpSocketPrivate
         {
-            internal PseudoTcpCallbacks callbacks;
+            internal Callbacks callbacks;
 
-            internal Shutdown shutdown;  /* only used if !support_fin_ack */
+            internal ShutdownType shutdown;  /* only used if !support_fin_ack */
             internal gboolean shutdown_reads;
             internal gint error;
 
             // TCB data
-            internal PseudoTcpState state;
+            internal PseudoTcpState.Values state;
             internal guint32 conv;
             internal gboolean bReadEnable, bWriteEnable, bOutgoing;
             internal guint32 last_traffic;
@@ -771,7 +855,7 @@ namespace PseudoTcp
             static void set_state_established (PseudoTcpSocket *self);
             static void set_state_closed (PseudoTcpSocket *self, uint err);
 
-            static const string pseudo_tcp_state_get_name (PseudoTcpState state);
+            static const string PseudoTcpState.GetName (PseudoTcpState state);
             static bool pseudo_tcp_state_has_sent_fin (PseudoTcpState state);
             static bool pseudo_tcp_state_has_received_fin (PseudoTcpState state);
             static bool pseudo_tcp_state_has_received_fin_ack (PseudoTcpState state);*/
@@ -807,7 +891,7 @@ namespace PseudoTcp
                 Console.WriteLine(level == PseudoTcpDebugLevel.PSEUDO_TCP_DEBUG_NORMAL ? "libnice-pseudotcp" : "libnice-pseudotcp-verbose" +
                     /*G_LOG_LEVEL_DEBUG,*/
                     string.Format("PseudoTcpSocket {0} {1}",
-                        self, pseudo_tcp_state_get_name(self.priv.state)) + string.Format(fmt, args));
+                        self, PseudoTcpState.GetName(self.priv.state)) + string.Format(fmt, args));
         }
 
         void
@@ -816,25 +900,23 @@ namespace PseudoTcp
             debug_level = level;
         }
 
-        static guint32
-        get_current_time(PseudoTcpSocket socket)
+        static guint32 GetCurrentTime(PseudoTcpSocket socket)
         {
             if (/*G_UNLIKELY*/ (socket.priv.current_time != 0))
                 return socket.priv.current_time;
 
-            return g_get_monotonic_time() /*/ 1000*/;
+            return GetMonotonicTime() /*/ 1000*/;
         }
 
-        static public uint g_get_monotonic_time()
+        static public uint GetMonotonicTime()
         {
             // probably use StopWatch or something similar
             return (uint)Environment.TickCount;
         }
 
-        void
-        pseudo_tcp_socket_set_time(PseudoTcpSocket self, guint32 current_time)
+        void SetTime(guint32 current_time)
         {
-            self.priv.current_time = current_time;
+            priv.current_time = current_time;
         }
 
 
@@ -870,8 +952,7 @@ namespace PseudoTcp
         }*/
 
 
-        static void
-        pseudo_tcp_socket_init(PseudoTcpSocket obj)
+        static void Init(PseudoTcpSocket obj)
         {
             /* Use g_new0, and do not use g_object_set_private because the size of
              * our private data is too big (150KB+) and the g_slice_allow cannot allocate
@@ -882,7 +963,7 @@ namespace PseudoTcp
 
             priv.rlist = new List<RSegment>();
 
-            priv.shutdown = Shutdown.SD_NONE;
+            priv.shutdown = ShutdownType.SD_NONE;
             priv.error = 0;
 
             priv.rbuf_len = DEFAULT_RCV_BUF_SIZE;
@@ -890,7 +971,7 @@ namespace PseudoTcp
             priv.sbuf_len = DEFAULT_SND_BUF_SIZE;
             priv.sbuf = PseudoTcpFifo.Init(priv.sbuf_len);
 
-            priv.state = PseudoTcpState.TCP_LISTEN;
+            priv.state = PseudoTcpState.Values.TCP_LISTEN;
             priv.conv = 0;
 
             priv.slist = new List<SSegment>();
@@ -935,18 +1016,18 @@ namespace PseudoTcp
             priv.support_fin_ack = true;
         }
 
-        static public PseudoTcpSocket pseudo_tcp_socket_new(uint conversation,
-            PseudoTcpCallbacks callbacks)
+        static public PseudoTcpSocket Create(uint conversation,
+            Callbacks callbacks)
         {
             PseudoTcpSocket result = new PseudoTcpSocket();
 
-            pseudo_tcp_socket_init(result);
+            Init(result);
 
             result.priv.callbacks = callbacks;
             return result;
         }
 
-        void queue_connect_message()
+        void ConnectMessage()
         {
             guint8[] buf = new guint8[8];
             gsize size = 0;
@@ -969,49 +1050,47 @@ namespace PseudoTcp
 
             priv.snd_wnd = size;
 
-            queue(buf, size, TcpFlags.FLAG_CTL);
+            Queue(buf, size, TcpFlags.FLAG_CTL);
         }
 
-        void queue_fin_message()
+        void QueueFinMessage()
         {
             g_assert(priv.support_fin_ack);
 
             /* FIN segments are always zero-length. */
-            queue(null, 0, TcpFlags.FLAG_FIN);
+            Queue(null, 0, TcpFlags.FLAG_FIN);
         }
 
-        void
-        queue_rst_message()
+        void QueueRstMessage()
         {
             g_assert(priv.support_fin_ack);
 
             /* RST segments are always zero-length. */
-            queue(null, 0, TcpFlags.FLAG_RST);
+            Queue(null, 0, TcpFlags.FLAG_RST);
         }
 
-        public bool
-        pseudo_tcp_socket_connect()
+        public bool Connect()
         {
-            if (priv.state != PseudoTcpState.TCP_LISTEN)
+            if (priv.state != PseudoTcpState.Values.TCP_LISTEN)
             {
                 priv.error = EINVAL;
                 return false;
             }
 
-            set_state(PseudoTcpState.TCP_SYN_SENT);
+            SetState(PseudoTcpState.Values.TCP_SYN_SENT);
 
-            queue_connect_message();
-            attempt_send(SendFlags.sfNone);
+            ConnectMessage();
+            AttemptSend(SendFlags.sfNone);
 
             return true;
         }
 
-        public void pseudo_tcp_socket_notify_mtu(guint16 mtu)
+        public void NotifyMtu(guint16 mtu)
         {
             priv.mtu_advise = mtu;
-            if (priv.state == PseudoTcpState.TCP_ESTABLISHED)
+            if (priv.state == PseudoTcpState.Values.TCP_ESTABLISHED)
             {
-                adjustMTU();
+                AdjustMTU();
             }
         }
 
@@ -1080,33 +1159,33 @@ namespace PseudoTcp
         }
 
 
-        public void pseudo_tcp_socket_notify_clock()
+        public void NotifyClock()
         {
-            guint32 now = get_current_time(this);
+            guint32 now = GetCurrentTime(this);
 
-            if (priv.state == PseudoTcpState.TCP_CLOSED)
+            if (priv.state == PseudoTcpState.Values.TCP_CLOSED)
                 return;
 
             /* If in the TIME-WAIT state, any delayed segments have passed and the
              * connection can be considered closed from both ends.
              * FIXME: This should probably actually compare a timestamp before
              * operating. */
-            if (priv.support_fin_ack && priv.state == PseudoTcpState.TCP_TIME_WAIT)
+            if (priv.support_fin_ack && priv.state == PseudoTcpState.Values.TCP_TIME_WAIT)
             {
                 DEBUG(this, PseudoTcpDebugLevel.PSEUDO_TCP_DEBUG_NORMAL,
                     "Notified clock in TIME-WAIT state; closing connection.");
-                set_state_closed(0);
+                SetStateClosed(0);
             }
 
             /* If in the LAST-ACK state, resend the FIN because it hasn’t been ACKed yet.
              * FIXME: This should probably actually compare a timestamp before
              * operating. */
-            if (priv.support_fin_ack && priv.state == PseudoTcpState.TCP_LAST_ACK)
+            if (priv.support_fin_ack && priv.state == PseudoTcpState.Values.TCP_LAST_ACK)
             {
                 DEBUG(this, PseudoTcpDebugLevel.PSEUDO_TCP_DEBUG_NORMAL,
                     "Notified clock in LAST-ACK state; resending FIN segment.");
-                queue_fin_message();
-                attempt_send(SendFlags.sfFin);
+                QueueFinMessage();
+                AttemptSend(SendFlags.sfFin);
             }
 
             // Check if it's time to retransmit a segment
@@ -1129,12 +1208,12 @@ namespace PseudoTcp
                         "timeout retransmit (rto: {0}) (rto_base: {1}) (now: {2}) (dup_acks: {3})",
                         priv.rx_rto, priv.rto_base, now, (uint)priv.dup_acks);
 
-                    transmit_status = transmit(GQueue.PeekHead(priv.slist), now);
+                    transmit_status = Transmit(GQueue.PeekHead(priv.slist), now);
                     if (transmit_status != 0)
                     {
                         DEBUG(this, PseudoTcpDebugLevel.PSEUDO_TCP_DEBUG_NORMAL,
                             "Error transmitting segment. Closing down.");
-                        closedown((uint)transmit_status, ClosedownSource.CLOSEDOWN_LOCAL);
+                        CloseDown((uint)transmit_status, ClosedownSource.CLOSEDOWN_LOCAL);
                         return;
                     }
 
@@ -1148,7 +1227,7 @@ namespace PseudoTcp
                     priv.cwnd = priv.mss;
 
                     // Back off retransmit timer.  Note: the limit is lower when connecting.
-                    rto_limit = (uint)((priv.state < PseudoTcpState.TCP_ESTABLISHED) ? DEF_RTO : MAX_RTO);
+                    rto_limit = (uint)((priv.state < PseudoTcpState.Values.TCP_ESTABLISHED) ? DEF_RTO : MAX_RTO);
                     priv.rx_rto = Math.Min(rto_limit, priv.rx_rto * 2);
                     priv.rto_base = now;
 
@@ -1169,12 +1248,12 @@ namespace PseudoTcp
                 if (time_diff(now, priv.lastrecv) >= 15000)
                 {
                     DEBUG(this, PseudoTcpDebugLevel.PSEUDO_TCP_DEBUG_NORMAL, "Receive window closed. Closing down.");
-                    closedown(ECONNABORTED, ClosedownSource.CLOSEDOWN_LOCAL);
+                    CloseDown(ECONNABORTED, ClosedownSource.CLOSEDOWN_LOCAL);
                     return;
                 }
 
                 // probe the window
-                packet(priv.snd_nxt - 1, 0, 0, 0, now);
+                Packet(priv.snd_nxt - 1, 0, 0, 0, now);
                 priv.lastsend = now;
 
                 // back off retransmit timer
@@ -1184,12 +1263,12 @@ namespace PseudoTcp
             // Check if it's time to send delayed acks
             if ((priv.t_ack != 0) && (time_diff(priv.t_ack + priv.ack_delay, now) <= 0))
             {
-                packet(priv.snd_nxt, 0, 0, 0, now);
+                Packet(priv.snd_nxt, 0, 0, 0, now);
             }
 
         }
 
-        public gboolean pseudo_tcp_socket_notify_packet(byte[] buffer, guint32 len)
+        public gboolean NotifyPacket(byte[] buffer, guint32 len)
         {
             gboolean retval;
 
@@ -1214,7 +1293,7 @@ namespace PseudoTcp
             byte[] data_buf = new byte[len - HEADER_SIZE];
             Buffer.BlockCopy(buffer, HEADER_SIZE, data_buf, 0, data_buf.Length);
 
-            retval = parse(buffer, HEADER_SIZE, data_buf, len - HEADER_SIZE);
+            retval = Parse(buffer, HEADER_SIZE, data_buf, len - HEADER_SIZE);
             //g_object_unref (self);
 
             return retval;
@@ -1255,13 +1334,13 @@ namespace PseudoTcp
           return retval;
         }*/
 
-        public gboolean pseudo_tcp_socket_get_next_clock(ref guint64 timeout)
+        public gboolean GetNextClock(ref guint64 timeout)
         {
-            guint32 now = get_current_time(this);
+            guint32 now = GetCurrentTime(this);
             gsize snd_buffered;
             guint32 closed_timeout;
 
-            if (priv.shutdown == Shutdown.SD_FORCEFUL)
+            if (priv.shutdown == ShutdownType.SD_FORCEFUL)
             {
                 if (priv.support_fin_ack)
                 {
@@ -1270,14 +1349,14 @@ namespace PseudoTcp
                 }
 
                 /* Transition to the CLOSED state. */
-                closedown(0, ClosedownSource.CLOSEDOWN_REMOTE);
+                CloseDown(0, ClosedownSource.CLOSEDOWN_REMOTE);
 
                 return false;
             }
 
             snd_buffered = PseudoTcpFifo.GetBuffered(priv.sbuf);
-            if ((priv.shutdown == Shutdown.SD_GRACEFUL)
-                && ((priv.state != PseudoTcpState.TCP_ESTABLISHED)
+            if ((priv.shutdown == ShutdownType.SD_GRACEFUL)
+                && ((priv.state != PseudoTcpState.Values.TCP_ESTABLISHED)
                     || ((snd_buffered == 0) && (priv.t_ack == 0))))
             {
                 if (priv.support_fin_ack)
@@ -1287,7 +1366,7 @@ namespace PseudoTcp
                 }
 
                 /* Transition to the CLOSED state. */
-                closedown(0, ClosedownSource.CLOSEDOWN_REMOTE);
+                CloseDown(0, ClosedownSource.CLOSEDOWN_REMOTE);
 
                 return false;
             }
@@ -1299,10 +1378,10 @@ namespace PseudoTcp
              * See: http://vincent.bernat.im/en/blog/2014-tcp-time-wait-state-linux.html
              */
             closed_timeout = CLOSED_TIMEOUT;
-            if (priv.support_fin_ack && priv.state == PseudoTcpState.TCP_TIME_WAIT)
+            if (priv.support_fin_ack && priv.state == PseudoTcpState.Values.TCP_TIME_WAIT)
                 closed_timeout = TIME_WAIT_TIMEOUT;
 
-            if (priv.support_fin_ack && priv.state == PseudoTcpState.TCP_CLOSED)
+            if (priv.support_fin_ack && priv.state == PseudoTcpState.Values.TCP_CLOSED)
             {
                 return false;
             }
@@ -1310,13 +1389,13 @@ namespace PseudoTcp
             if (timeout == 0 || timeout < now)
                 timeout = now + closed_timeout;
 
-            if (priv.support_fin_ack && priv.state == PseudoTcpState.TCP_TIME_WAIT)
+            if (priv.support_fin_ack && priv.state == PseudoTcpState.Values.TCP_TIME_WAIT)
             {
                 timeout = Math.Min(timeout, now + TIME_WAIT_TIMEOUT);
                 return true;
             }
 
-            if (priv.state == PseudoTcpState.TCP_CLOSED && !priv.support_fin_ack)
+            if (priv.state == PseudoTcpState.Values.TCP_CLOSED && !priv.support_fin_ack)
             {
                 timeout = Math.Min(timeout, now + CLOSED_TIMEOUT);
                 return true;
@@ -1340,8 +1419,7 @@ namespace PseudoTcp
             return true;
         }
 
-
-        public gint pseudo_tcp_socket_recv(byte[] buffer, size_t len)
+        public gint Recv(byte[] buffer, size_t len)
         {
             gsize bytesread;
             gsize available_space;
@@ -1353,14 +1431,14 @@ namespace PseudoTcp
             }
 
             /* Return 0 if FIN-ACK is not supported but the socket has been closed. */
-            if (!priv.support_fin_ack && pseudo_tcp_socket_is_closed())
+            if (!priv.support_fin_ack && IsClosed())
             {
                 return 0;
             }
 
             /* Return ENOTCONN if FIN-ACK is not supported and the connection is not
              * ESTABLISHED. */
-            if (!priv.support_fin_ack && priv.state != PseudoTcpState.TCP_ESTABLISHED)
+            if (!priv.support_fin_ack && priv.state != PseudoTcpState.Values.TCP_ESTABLISHED)
             {
                 priv.error = ENOTCONN;
                 return -1;
@@ -1373,8 +1451,8 @@ namespace PseudoTcp
 
             // If there's no data in |m_rbuf|.
             if (bytesread == 0 &&
-                !(pseudo_tcp_state_has_received_fin(priv.state) ||
-                  pseudo_tcp_state_has_received_fin_ack(priv.state)))
+                !(PseudoTcpState.HasReceivedFin(priv.state) ||
+                  PseudoTcpState.HasReceivedFinAck(priv.state)))
             {
                 priv.bReadEnable = true;
                 priv.error = EWOULDBLOCK;
@@ -1393,7 +1471,7 @@ namespace PseudoTcp
 
                 if (bWasClosed)
                 {
-                    attempt_send(SendFlags.sfImmediateAck);
+                    AttemptSend(SendFlags.sfImmediateAck);
                 }
             }
 
@@ -1401,14 +1479,14 @@ namespace PseudoTcp
             return (gint)bytesread;
         }
 
-        public gint pseudo_tcp_socket_send(byte[] buffer, guint32 len)
+        public gint Send(byte[] buffer, guint32 len)
         {
             gint written;
             gsize available_space;
 
-            if (priv.state != PseudoTcpState.TCP_ESTABLISHED)
+            if (priv.state != PseudoTcpState.Values.TCP_ESTABLISHED)
             {
-                priv.error = pseudo_tcp_state_has_sent_fin(priv.state) ? EPIPE : ENOTCONN;
+                priv.error = PseudoTcpState.HasSentFin(priv.state) ? EPIPE : ENOTCONN;
                 return -1;
             }
 
@@ -1422,8 +1500,8 @@ namespace PseudoTcp
             }
 
 #warning this cast was not here in C code (gint)
-            written = (gint)queue(buffer, len, TcpFlags.FLAG_NONE);
-            attempt_send(SendFlags.sfNone);
+            written = (gint)Queue(buffer, len, TcpFlags.FLAG_NONE);
+            AttemptSend(SendFlags.sfNone);
 
             if (written > 0 && (uint)written < len)
             {
@@ -1433,31 +1511,31 @@ namespace PseudoTcp
             return written;
         }
 
-        public void pseudo_tcp_socket_close(gboolean force)
+        public void Close(gboolean force)
         {
             DEBUG(this, PseudoTcpDebugLevel.PSEUDO_TCP_DEBUG_NORMAL, "Closing socket {0} {1}",
                 force ? "forcefully" : "gracefully");
 
             /* Forced closure by sending an RST segment. RFC 1122, §4.2.2.13. */
-            if (force && priv.state != PseudoTcpState.TCP_CLOSED)
+            if (force && priv.state != PseudoTcpState.Values.TCP_CLOSED)
             {
-                closedown(ECONNABORTED, ClosedownSource.CLOSEDOWN_LOCAL);
+                CloseDown(ECONNABORTED, ClosedownSource.CLOSEDOWN_LOCAL);
                 return;
             }
 
             /* Fall back to shutdown(). */
-            pseudo_tcp_socket_shutdown(PseudoTcpShutdown.PSEUDO_TCP_SHUTDOWN_RDWR);
+            Shutdown(PseudoTcpShutdown.PSEUDO_TCP_SHUTDOWN_RDWR);
         }
 
-        public void pseudo_tcp_socket_shutdown(PseudoTcpShutdown how)
+        public void Shutdown(PseudoTcpShutdown how)
         {
             DEBUG(this, PseudoTcpDebugLevel.PSEUDO_TCP_DEBUG_NORMAL, "Shutting down socket %p: %u", this, how);
 
             /* FIN-ACK--only stuff below here. */
             if (!priv.support_fin_ack)
             {
-                if (priv.shutdown == Shutdown.SD_NONE)
-                    priv.shutdown = Shutdown.SD_GRACEFUL;
+                if (priv.shutdown == ShutdownType.SD_NONE)
+                    priv.shutdown = ShutdownType.SD_GRACEFUL;
                 return;
             }
 
@@ -1484,43 +1562,43 @@ namespace PseudoTcp
             /* Unforced write closure. */
             switch (priv.state)
             {
-                case PseudoTcpState.TCP_LISTEN:
-                case PseudoTcpState.TCP_SYN_SENT:
+                case PseudoTcpState.Values.TCP_LISTEN:
+                case PseudoTcpState.Values.TCP_SYN_SENT:
                     /* Just abort the connection without completing the handshake. */
-                    set_state_closed(0);
+                    SetStateClosed(0);
                     break;
-                case PseudoTcpState.TCP_SYN_RECEIVED:
-                case PseudoTcpState.TCP_ESTABLISHED:
+                case PseudoTcpState.Values.TCP_SYN_RECEIVED:
+                case PseudoTcpState.Values.TCP_ESTABLISHED:
                     /* Local user initiating the close: RFC 793, §3.5, Cases 1 and 3.
                      * If there is pending receive data, send RST instead of FIN;
                      * see RFC 1122, §4.2.2.13. */
-                    if (pseudo_tcp_socket_get_available_bytes() > 0)
+                    if (GetAvailableBytes() > 0)
                     {
-                        closedown(ECONNABORTED, ClosedownSource.CLOSEDOWN_LOCAL);
+                        CloseDown(ECONNABORTED, ClosedownSource.CLOSEDOWN_LOCAL);
                     }
                     else
                     {
-                        queue_fin_message();
-                        attempt_send(SendFlags.sfFin);
-                        set_state(PseudoTcpState.TCP_FIN_WAIT_1);
+                        QueueFinMessage();
+                        AttemptSend(SendFlags.sfFin);
+                        SetState(PseudoTcpState.Values.TCP_FIN_WAIT_1);
                     }
                     break;
-                case PseudoTcpState.TCP_CLOSE_WAIT:
+                case PseudoTcpState.Values.TCP_CLOSE_WAIT:
                     /* Remote user initiating the close: RFC 793, §3.5, Case 2.
                      * We’ve previously received a FIN from the peer; now the user is closing
                      * the local end of the connection. */
-                    queue_fin_message();
-                    attempt_send(SendFlags.sfFin);
-                    set_state(PseudoTcpState.TCP_LAST_ACK);
+                    QueueFinMessage();
+                    AttemptSend(SendFlags.sfFin);
+                    SetState(PseudoTcpState.Values.TCP_LAST_ACK);
                     break;
-                case PseudoTcpState.TCP_CLOSING:
-                case PseudoTcpState.TCP_CLOSED:
+                case PseudoTcpState.Values.TCP_CLOSING:
+                case PseudoTcpState.Values.TCP_CLOSED:
                     /* Already closed on both sides. */
                     break;
-                case PseudoTcpState.TCP_FIN_WAIT_1:
-                case PseudoTcpState.TCP_FIN_WAIT_2:
-                case PseudoTcpState.TCP_TIME_WAIT:
-                case PseudoTcpState.TCP_LAST_ACK:
+                case PseudoTcpState.Values.TCP_FIN_WAIT_1:
+                case PseudoTcpState.Values.TCP_FIN_WAIT_2:
+                case PseudoTcpState.Values.TCP_TIME_WAIT:
+                case PseudoTcpState.Values.TCP_LAST_ACK:
                     /* Already closed locally. */
                     break;
                 default:
@@ -1529,10 +1607,8 @@ namespace PseudoTcp
             }
         }
 
-        static public int
-        pseudo_tcp_socket_get_error(PseudoTcpSocket self)
+        public int GetError()
         {
-            PseudoTcpSocketPrivate priv = self.priv;
             return priv.error;
         }
 
@@ -1540,7 +1616,7 @@ namespace PseudoTcp
         // Internal Implementation
         //
 
-        guint32 queue(/*const gchar * */ byte[] data, guint32 len, TcpFlags flags)
+        guint32 Queue(/*const gchar * */ byte[] data, guint32 len, TcpFlags flags)
         {
             gsize available_space;
 
@@ -1584,8 +1660,7 @@ namespace PseudoTcp
         // |len| is the number of bytes to read from |m_sbuf| as payload. If this
         // value is 0 then this is an ACK packet, otherwise this packet has payload.
 
-        PseudoTcpWriteResult
-        packet(guint32 seq, TcpFlags flags,
+        WriteResult Packet(guint32 seq, TcpFlags flags,
             guint32 offset, guint32 len, guint32 now)
         {
             /*union {
@@ -1596,7 +1671,7 @@ namespace PseudoTcp
 
             byte[] buffer = new byte[MAX_PACKET];
 
-            PseudoTcpWriteResult wres = PseudoTcpWriteResult.WR_SUCCESS;
+            WriteResult wres = WriteResult.WR_SUCCESS;
 
             g_assert(HEADER_SIZE + len <= MAX_PACKET);
 
@@ -1651,7 +1726,7 @@ namespace PseudoTcp
                return value for those, and thus we won't retry.  So go ahead and treat
                the packet as a success (basically simulate as if it were dropped),
                which will prevent our timers from being messed up. */
-            if ((wres != PseudoTcpWriteResult.WR_SUCCESS) && (0 != len))
+            if ((wres != WriteResult.WR_SUCCESS) && (0 != len))
                 return wres;
 
             priv.t_ack = 0;
@@ -1662,11 +1737,10 @@ namespace PseudoTcp
             priv.last_traffic = now;
             priv.bOutgoing = true;
 
-            return PseudoTcpWriteResult.WR_SUCCESS;
+            return WriteResult.WR_SUCCESS;
         }
 
-        gboolean
-        parse(byte[] _header_buf, gsize header_buf_len,
+        gboolean Parse(byte[] _header_buf, gsize header_buf_len,
             byte[] data_buf, gsize data_buf_len)
         {
             Segment seg = new Segment();
@@ -1706,86 +1780,10 @@ namespace PseudoTcp
                 seg.conv, /*(unsigned)*/seg.flags, seg.seq, seg.seq + seg.len, seg.ack,
                 seg.wnd, seg.tsval % 10000, seg.tsecr % 10000, seg.len);
 
-            return process(seg);
+            return Process(seg);
         }
 
-        /* True iff the @state requires that a FIN has already been sent by this
-         * host. */
-        static gboolean
-        pseudo_tcp_state_has_sent_fin(PseudoTcpState state)
-        {
-            switch (state)
-            {
-                case PseudoTcpState.TCP_LISTEN:
-                case PseudoTcpState.TCP_SYN_SENT:
-                case PseudoTcpState.TCP_SYN_RECEIVED:
-                case PseudoTcpState.TCP_ESTABLISHED:
-                case PseudoTcpState.TCP_CLOSE_WAIT:
-                    return false;
-                case PseudoTcpState.TCP_CLOSED:
-                case PseudoTcpState.TCP_FIN_WAIT_1:
-                case PseudoTcpState.TCP_FIN_WAIT_2:
-                case PseudoTcpState.TCP_CLOSING:
-                case PseudoTcpState.TCP_TIME_WAIT:
-                case PseudoTcpState.TCP_LAST_ACK:
-                    return true;
-                default:
-                    return false;
-            }
-        }
-
-        /* True iff the @state requires that a FIN has already been received from the
-         * peer. */
-        static gboolean
-        pseudo_tcp_state_has_received_fin(PseudoTcpState state)
-        {
-            switch (state)
-            {
-                case PseudoTcpState.TCP_LISTEN:
-                case PseudoTcpState.TCP_SYN_SENT:
-                case PseudoTcpState.TCP_SYN_RECEIVED:
-                case PseudoTcpState.TCP_ESTABLISHED:
-                case PseudoTcpState.TCP_FIN_WAIT_1:
-                case PseudoTcpState.TCP_FIN_WAIT_2:
-                    return false;
-                case PseudoTcpState.TCP_CLOSED:
-                case PseudoTcpState.TCP_CLOSING:
-                case PseudoTcpState.TCP_TIME_WAIT:
-                case PseudoTcpState.TCP_CLOSE_WAIT:
-                case PseudoTcpState.TCP_LAST_ACK:
-                    return true;
-                default:
-                    return false;
-            }
-        }
-
-        /* True iff the @state requires that a FIN-ACK has already been received from
-         * the peer. */
-        static gboolean
-        pseudo_tcp_state_has_received_fin_ack(PseudoTcpState state)
-        {
-            switch (state)
-            {
-                case PseudoTcpState.TCP_LISTEN:
-                case PseudoTcpState.TCP_SYN_SENT:
-                case PseudoTcpState.TCP_SYN_RECEIVED:
-                case PseudoTcpState.TCP_ESTABLISHED:
-                case PseudoTcpState.TCP_FIN_WAIT_1:
-                case PseudoTcpState.TCP_FIN_WAIT_2:
-                case PseudoTcpState.TCP_CLOSING:
-                case PseudoTcpState.TCP_CLOSE_WAIT:
-                case PseudoTcpState.TCP_LAST_ACK:
-                    return false;
-                case PseudoTcpState.TCP_CLOSED:
-                case PseudoTcpState.TCP_TIME_WAIT:
-                    return true;
-                default:
-                    return false;
-            }
-        }
-
-        gboolean
-        process(Segment seg)
+        gboolean Process(Segment seg)
         {
             guint32 now;
             SendFlags sflags = SendFlags.sfNone;
@@ -1809,12 +1807,12 @@ namespace PseudoTcp
                 return false;
             }
 
-            now = get_current_time(this);
+            now = GetCurrentTime(this);
             priv.last_traffic = priv.lastrecv = now;
             priv.bOutgoing = false;
 
-            if (priv.state == PseudoTcpState.TCP_CLOSED ||
-                (pseudo_tcp_state_has_received_fin_ack(priv.state) && seg.len > 0))
+            if (priv.state == PseudoTcpState.Values.TCP_CLOSED ||
+                (PseudoTcpState.HasReceivedFinAck(priv.state) && seg.len > 0))
             {
                 /* Send an RST segment. See: RFC 1122, §4.2.2.13; RFC 793, §3.4, point 3,
                  * page 37. We can only send RST if we know the peer knows we’re closed;
@@ -1824,7 +1822,7 @@ namespace PseudoTcp
                     "Segment received while closed; sending RST.");
                 if ((seg.flags & TcpFlags.FLAG_RST) == 0)
                 {
-                    closedown(0, ClosedownSource.CLOSEDOWN_LOCAL);
+                    CloseDown(0, ClosedownSource.CLOSEDOWN_LOCAL);
                 }
 
                 return false;
@@ -1834,7 +1832,7 @@ namespace PseudoTcp
             if ((seg.flags & TcpFlags.FLAG_RST) != 0)
             {
                 DEBUG(this, PseudoTcpDebugLevel.PSEUDO_TCP_DEBUG_NORMAL, "Received RST segment; closing down.");
-                closedown(ECONNRESET, ClosedownSource.CLOSEDOWN_REMOTE);
+                CloseDown(ECONNRESET, ClosedownSource.CLOSEDOWN_REMOTE);
                 return false;
             }
 
@@ -1855,16 +1853,16 @@ namespace PseudoTcp
                     byte[] segdata1 = new byte[seg.len - 1];
                     Buffer.BlockCopy(seg.data, 1, segdata1, 0, segdata1.Length);
 
-                    parse_options(segdata1, seg.len - 1);
+                    ParseOptions(segdata1, seg.len - 1);
 
-                    if (priv.state == PseudoTcpState.TCP_LISTEN)
+                    if (priv.state == PseudoTcpState.Values.TCP_LISTEN)
                     {
-                        set_state(PseudoTcpState.TCP_SYN_RECEIVED);
-                        queue_connect_message();
+                        SetState(PseudoTcpState.Values.TCP_SYN_RECEIVED);
+                        ConnectMessage();
                     }
-                    else if (priv.state == PseudoTcpState.TCP_SYN_SENT)
+                    else if (priv.state == PseudoTcpState.Values.TCP_SYN_SENT)
                     {
-                        set_state_established();
+                        SetStateEstablished();
                     }
                 }
                 else
@@ -1935,7 +1933,7 @@ namespace PseudoTcp
                  * corresponding byte to read because the FIN segment is empty (it just has
                  * a sequence number). */
                 if (nAcked == priv.sbuf.data_length + 1 &&
-                    pseudo_tcp_state_has_sent_fin(priv.state))
+                    PseudoTcpState.HasSentFin(priv.state))
                 {
                     is_fin_ack = true;
                     nAcked--;
@@ -1985,12 +1983,12 @@ namespace PseudoTcp
                         int transmit_status;
 
                         DEBUG(this, PseudoTcpDebugLevel.PSEUDO_TCP_DEBUG_NORMAL, "recovery retransmit");
-                        transmit_status = transmit(GQueue.PeekHead(priv.slist), now);
+                        transmit_status = Transmit(GQueue.PeekHead(priv.slist), now);
                         if (transmit_status != 0)
                         {
                             DEBUG(this, PseudoTcpDebugLevel.PSEUDO_TCP_DEBUG_NORMAL,
                                 "Error transmitting recovery retransmit segment. Closing down.");
-                            closedown((size_t)transmit_status, ClosedownSource.CLOSEDOWN_LOCAL);
+                            CloseDown((size_t)transmit_status, ClosedownSource.CLOSEDOWN_LOCAL);
                             return false;
                         }
                         priv.cwnd += (nAcked > priv.mss ? priv.mss : 0) -
@@ -2041,14 +2039,14 @@ namespace PseudoTcp
                             DEBUG(this, PseudoTcpDebugLevel.PSEUDO_TCP_DEBUG_NORMAL, "recovery retransmit");
 
 #warning the cast was not here in C code
-                            transmit_status = (guint32)transmit(GQueue.PeekHead(priv.slist),
+                            transmit_status = (guint32)Transmit(GQueue.PeekHead(priv.slist),
                                 now);
                             if (transmit_status != 0)
                             {
                                 DEBUG(this, PseudoTcpDebugLevel.PSEUDO_TCP_DEBUG_NORMAL,
                                   "Error transmitting recovery retransmit segment. Closing down.");
 
-                                closedown((size_t)transmit_status, ClosedownSource.CLOSEDOWN_LOCAL);
+                                CloseDown((size_t)transmit_status, ClosedownSource.CLOSEDOWN_LOCAL);
                                 return false;
                             }
                             priv.recover = priv.snd_nxt;
@@ -2080,9 +2078,9 @@ namespace PseudoTcp
             }
 
             // !?! A bit hacky
-            if ((priv.state == PseudoTcpState.TCP_SYN_RECEIVED) && !bConnect)
+            if ((priv.state == PseudoTcpState.Values.TCP_SYN_RECEIVED) && !bConnect)
             {
-                set_state_established();
+                SetStateEstablished();
             }
 
             /* Check for connection closure. Only pay attention to FIN segments if they
@@ -2112,59 +2110,59 @@ namespace PseudoTcp
                  * ‘rcv ACK of FIN’ from RFC 793, Figure 6; and RFC 1122, §4.2.2.8. */
                 switch (priv.state)
                 {
-                    case PseudoTcpState.TCP_ESTABLISHED:
+                    case PseudoTcpState.Values.TCP_ESTABLISHED:
                         if (received_fin)
                         {
                             /* Received a FIN from the network, RFC 793, §3.5, Case 2.
                              * The code below will send an ACK for the FIN. */
-                            set_state(PseudoTcpState.TCP_CLOSE_WAIT);
+                            SetState(PseudoTcpState.Values.TCP_CLOSE_WAIT);
                         }
                         break;
-                    case PseudoTcpState.TCP_CLOSING:
+                    case PseudoTcpState.Values.TCP_CLOSING:
                         if (is_fin_ack)
                         {
                             /* Handle the ACK of a locally-sent FIN flag. RFC 793, §3.5, Case 3. */
-                            set_state(PseudoTcpState.TCP_TIME_WAIT);
+                            SetState(PseudoTcpState.Values.TCP_TIME_WAIT);
                         }
                         break;
-                    case PseudoTcpState.TCP_LAST_ACK:
+                    case PseudoTcpState.Values.TCP_LAST_ACK:
                         if (is_fin_ack)
                         {
                             /* Handle the ACK of a locally-sent FIN flag. RFC 793, §3.5, Case 2. */
-                            set_state_closed(0);
+                            SetStateClosed(0);
                         }
                         break;
-                    case PseudoTcpState.TCP_FIN_WAIT_1:
+                    case PseudoTcpState.Values.TCP_FIN_WAIT_1:
                         if (is_fin_ack && received_fin)
                         {
                             /* Simultaneous close with an ACK for a FIN previously sent,
                              * RFC 793, §3.5, Case 3. */
-                            set_state(PseudoTcpState.TCP_TIME_WAIT);
+                            SetState(PseudoTcpState.Values.TCP_TIME_WAIT);
                         }
                         else if (is_fin_ack)
                         {
                             /* Handle the ACK of a locally-sent FIN flag. RFC 793, §3.5, Case 1. */
-                            set_state(PseudoTcpState.TCP_FIN_WAIT_2);
+                            SetState(PseudoTcpState.Values.TCP_FIN_WAIT_2);
                         }
                         else if (received_fin)
                         {
                             /* Simultaneous close, RFC 793, §3.5, Case 3. */
-                            set_state(PseudoTcpState.TCP_CLOSING);
+                            SetState(PseudoTcpState.Values.TCP_CLOSING);
                         }
                         break;
-                    case PseudoTcpState.TCP_FIN_WAIT_2:
+                    case PseudoTcpState.Values.TCP_FIN_WAIT_2:
                         if (received_fin)
                         {
                             /* Local user closed the connection, RFC 793, §3.5, Case 1. */
-                            set_state(PseudoTcpState.TCP_TIME_WAIT);
+                            SetState(PseudoTcpState.Values.TCP_TIME_WAIT);
                         }
                         break;
-                    case PseudoTcpState.TCP_LISTEN:
-                    case PseudoTcpState.TCP_SYN_SENT:
-                    case PseudoTcpState.TCP_SYN_RECEIVED:
-                    case PseudoTcpState.TCP_TIME_WAIT:
-                    case PseudoTcpState.TCP_CLOSED:
-                    case PseudoTcpState.TCP_CLOSE_WAIT:
+                    case PseudoTcpState.Values.TCP_LISTEN:
+                    case PseudoTcpState.Values.TCP_SYN_SENT:
+                    case PseudoTcpState.Values.TCP_SYN_RECEIVED:
+                    case PseudoTcpState.Values.TCP_TIME_WAIT:
+                    case PseudoTcpState.Values.TCP_CLOSED:
+                    case PseudoTcpState.Values.TCP_CLOSE_WAIT:
                         /* Shouldn’t ever hit these cases. */
                         if (received_fin)
                         {
@@ -2293,7 +2291,7 @@ namespace PseudoTcp
 
             bIgnoreData = (seg.flags & TcpFlags.FLAG_CTL) != 0;
             if (!priv.support_fin_ack)
-                bIgnoreData |= (priv.shutdown != Shutdown.SD_NONE);
+                bIgnoreData |= (priv.shutdown != ShutdownType.SD_NONE);
 
             bNewData = false;
 
@@ -2378,7 +2376,7 @@ namespace PseudoTcp
             }
 
 
-            attempt_send(sflags);
+            AttemptSend(sflags);
 
             // If we have new data, notify the user
             if (bNewData && priv.bReadEnable)
@@ -2394,12 +2392,12 @@ namespace PseudoTcp
             return true;
         }
 
-        int /*gboolean - originally in C, but it does not match in C#*/
-        transmit(SSegment segment, guint32 now)
+        /*gboolean - originally in C, but it does not match in C#*/
+        int Transmit(SSegment segment, guint32 now)
         {
             uint nTransmit = Math.Min(segment.len, priv.mss);
 
-            if (segment.xmit >= ((priv.state == PseudoTcpState.TCP_ESTABLISHED) ? 15 : 30))
+            if (segment.xmit >= ((priv.state == PseudoTcpState.Values.TCP_ESTABLISHED) ? 15 : 30))
             {
                 DEBUG(this, PseudoTcpDebugLevel.PSEUDO_TCP_DEBUG_NORMAL, "too many retransmits");
                 return ETIMEDOUT;
@@ -2410,26 +2408,26 @@ namespace PseudoTcp
                 guint32 seq = segment.seq;
 #warning handled as guint8 in C code
                 TcpFlags flags = segment.flags;
-                PseudoTcpWriteResult wres;
+                WriteResult wres;
 
                 /* The packet must not have already been acknowledged. */
 #warning Uncomment and implement this assert
                 //        g_assert_cmpuint (segment.seq - priv.snd_una, <=, 1024 * 1024 * 64);
 
                 /* Write out the packet. */
-                wres = packet(seq, flags,
+                wres = Packet(seq, flags,
                     segment.seq - priv.snd_una, nTransmit, now);
 
-                if (wres == PseudoTcpWriteResult.WR_SUCCESS)
+                if (wres == WriteResult.WR_SUCCESS)
                     break;
 
-                if (wres == PseudoTcpWriteResult.WR_FAIL)
+                if (wres == WriteResult.WR_FAIL)
                 {
                     DEBUG(this, PseudoTcpDebugLevel.PSEUDO_TCP_DEBUG_NORMAL, "packet failed");
                     return ECONNABORTED;  /* FIXME: This error code doesn’t quite seem right */
                 }
 
-                g_assert(wres == PseudoTcpWriteResult.WR_TOO_LARGE);
+                g_assert(wres == WriteResult.WR_TOO_LARGE);
 
                 while (true)
                 {
@@ -2493,9 +2491,9 @@ namespace PseudoTcp
             return 0;
         }
 
-        void attempt_send(SendFlags sflags)
+        void AttemptSend(SendFlags sflags)
         {
-            uint now = get_current_time(this);
+            uint now = GetCurrentTime(this);
             bool bFirst = true;
 
             DEBUG(this, PseudoTcpDebugLevel.PSEUDO_TCP_DEBUG_NORMAL, "Attempting send with flags %u.", sflags);
@@ -2559,7 +2557,7 @@ namespace PseudoTcp
 
                 if (sflags == SendFlags.sfDuplicateAck)
                 {
-                    packet(priv.snd_nxt, 0, 0, 0, now);
+                    Packet(priv.snd_nxt, 0, 0, 0, now);
                     sflags = SendFlags.sfNone;
                     continue;
                 }
@@ -2573,7 +2571,7 @@ namespace PseudoTcp
                     if ((sflags == SendFlags.sfImmediateAck || sflags == SendFlags.sfDuplicateAck) ||
                         priv.t_ack != 0)
                     {
-                        packet(priv.snd_nxt, 0, 0, 0, now);
+                        Packet(priv.snd_nxt, 0, 0, 0, now);
                     }
                     else
                     {
@@ -2613,14 +2611,14 @@ namespace PseudoTcp
                         subseg);
                 }
 
-                transmit_status = transmit(sseg, now);
+                transmit_status = Transmit(sseg, now);
                 if (transmit_status != 0)
                 {
                     DEBUG(this, PseudoTcpDebugLevel.PSEUDO_TCP_DEBUG_NORMAL, "transmit failed");
 
                     // TODO: Is this the right thing ?
 #warning this cast to gsize was not in C code
-                    closedown((gsize)transmit_status, ClosedownSource.CLOSEDOWN_REMOTE);
+                    CloseDown((gsize)transmit_status, ClosedownSource.CLOSEDOWN_REMOTE);
                     return;
                 }
 
@@ -2632,56 +2630,55 @@ namespace PseudoTcp
         /* If @source is %CLOSEDOWN_REMOTE, don’t send an RST packet, since closedown()
          * has been called as a result of an RST segment being received.
          * See: RFC 1122, §4.2.2.13. */
-        void
-        closedown(guint32 err, ClosedownSource source)
+        void CloseDown(guint32 err, ClosedownSource source)
         {
             DEBUG(this, PseudoTcpDebugLevel.PSEUDO_TCP_DEBUG_NORMAL, "Closing down socket %p with %s error %u.",
                 this, (source == ClosedownSource.CLOSEDOWN_LOCAL) ? "local" : "remote", err);
 
             if (source == ClosedownSource.CLOSEDOWN_LOCAL && priv.support_fin_ack)
             {
-                queue_rst_message();
-                attempt_send(SendFlags.sfRst);
+                QueueRstMessage();
+                AttemptSend(SendFlags.sfRst);
             }
             else if (source == ClosedownSource.CLOSEDOWN_LOCAL)
             {
-                priv.shutdown = Shutdown.SD_FORCEFUL;
+                priv.shutdown = ShutdownType.SD_FORCEFUL;
             }
 
             /* ‘Cute’ little navigation through the state machine to avoid breaking the
              * invariant that CLOSED can only be reached from TIME-WAIT or LAST-ACK. */
             switch (priv.state)
             {
-                case PseudoTcpState.TCP_LISTEN:
-                case PseudoTcpState.TCP_SYN_SENT:
+                case PseudoTcpState.Values.TCP_LISTEN:
+                case PseudoTcpState.Values.TCP_SYN_SENT:
                     break;
-                case PseudoTcpState.TCP_SYN_RECEIVED:
-                case PseudoTcpState.TCP_ESTABLISHED:
-                    set_state(PseudoTcpState.TCP_FIN_WAIT_1);
-                    goto case PseudoTcpState.TCP_FIN_WAIT_1;
+                case PseudoTcpState.Values.TCP_SYN_RECEIVED:
+                case PseudoTcpState.Values.TCP_ESTABLISHED:
+                    SetState(PseudoTcpState.Values.TCP_FIN_WAIT_1);
+                    goto case PseudoTcpState.Values.TCP_FIN_WAIT_1;
                 /* Fall through. */
-                case PseudoTcpState.TCP_FIN_WAIT_1:
-                    set_state(PseudoTcpState.TCP_FIN_WAIT_2);
-                    goto case PseudoTcpState.TCP_FIN_WAIT_2;
+                case PseudoTcpState.Values.TCP_FIN_WAIT_1:
+                    SetState(PseudoTcpState.Values.TCP_FIN_WAIT_2);
+                    goto case PseudoTcpState.Values.TCP_FIN_WAIT_2;
                 /* Fall through. */
-                case PseudoTcpState.TCP_FIN_WAIT_2:
-                case PseudoTcpState.TCP_CLOSING:
-                    set_state(PseudoTcpState.TCP_TIME_WAIT);
+                case PseudoTcpState.Values.TCP_FIN_WAIT_2:
+                case PseudoTcpState.Values.TCP_CLOSING:
+                    SetState(PseudoTcpState.Values.TCP_TIME_WAIT);
                     break;
-                case PseudoTcpState.TCP_CLOSE_WAIT:
-                    set_state(PseudoTcpState.TCP_LAST_ACK);
+                case PseudoTcpState.Values.TCP_CLOSE_WAIT:
+                    SetState(PseudoTcpState.Values.TCP_LAST_ACK);
                     break;
-                case PseudoTcpState.TCP_LAST_ACK:
-                case PseudoTcpState.TCP_TIME_WAIT:
-                case PseudoTcpState.TCP_CLOSED:
+                case PseudoTcpState.Values.TCP_LAST_ACK:
+                case PseudoTcpState.Values.TCP_TIME_WAIT:
+                case PseudoTcpState.Values.TCP_CLOSED:
                 default:
                     break;
             }
 
-            set_state_closed(err);
+            SetStateClosed(err);
         }
 
-        void adjustMTU()
+        void AdjustMTU()
         {
             // Determine our current mss level, so that we can adjust appropriately later
             for (priv.msslevel = 0;
@@ -2701,21 +2698,18 @@ namespace PseudoTcp
             priv.cwnd = Math.Max(priv.cwnd, priv.mss);
         }
 
-        static void
-        apply_window_scale_option(PseudoTcpSocket self, guint8 scale_factor)
+        void ApplyWindowScaleOption(guint8 scale_factor)
         {
-            PseudoTcpSocketPrivate priv = self.priv;
-
             priv.swnd_scale = scale_factor;
-            DEBUG(self, PseudoTcpDebugLevel.PSEUDO_TCP_DEBUG_NORMAL, "Setting scale factor to %u", scale_factor);
+            DEBUG(this, PseudoTcpDebugLevel.PSEUDO_TCP_DEBUG_NORMAL, "Setting scale factor to %u", scale_factor);
         }
 
-        void apply_fin_ack_option()
+        void ApplyFinAckOption()
         {
             priv.support_fin_ack = true;
         }
 
-        void apply_option(TcpOption kind, guint8[] data, guint32 len)
+        void ApplyOption(TcpOption kind, guint8[] data, guint32 len)
         {
             switch (kind)
             {
@@ -2732,12 +2726,12 @@ namespace PseudoTcp
                         DEBUG(this, PseudoTcpDebugLevel.PSEUDO_TCP_DEBUG_NORMAL, "Invalid window scale option received.");
                         return;
                     }
-                    apply_window_scale_option(this, data[0]);
+                    ApplyWindowScaleOption(data[0]);
                     break;
                 case TcpOption.TCP_OPT_FIN_ACK:
                     // FIN-ACK support.
                     DEBUG(this, PseudoTcpDebugLevel.PSEUDO_TCP_DEBUG_NORMAL, "FIN-ACK support enabled.");
-                    apply_fin_ack_option();
+                    ApplyFinAckOption();
                     break;
                 case TcpOption.TCP_OPT_EOL:
                 case TcpOption.TCP_OPT_NOOP:
@@ -2750,7 +2744,7 @@ namespace PseudoTcp
         }
 
 
-        void parse_options(byte[] data, guint32 len)
+        void ParseOptions(byte[] data, guint32 len)
         {
             gboolean has_window_scaling_option = false;
             gboolean has_fin_ack_option = false;
@@ -2799,7 +2793,7 @@ namespace PseudoTcp
                     byte[] datapos = new byte[opt_len];
                     Buffer.BlockCopy(data, (int)pos, datapos, 0, datapos.Length);
 
-                    apply_option(kind, datapos, opt_len);
+                    ApplyOption(kind, datapos, opt_len);
                     pos += opt_len;
                 }
                 else
@@ -2821,7 +2815,7 @@ namespace PseudoTcp
                 {
                     // Peer doesn't support TCP options and window scaling.
                     // Revert receive buffer size to default value.
-                    resize_receive_buffer(this, DEFAULT_RCV_BUF_SIZE);
+                    ResizeReceiveBuffer(DEFAULT_RCV_BUF_SIZE);
                     priv.swnd_scale = 0;
                 }
             }
@@ -2833,20 +2827,15 @@ namespace PseudoTcp
             }
         }
 
-        static void
-        resize_send_buffer(PseudoTcpSocket self, guint32 new_size)
+        void ResizeSendBuffer(guint32 new_size)
         {
-            PseudoTcpSocketPrivate priv = self.priv;
-
             priv.sbuf_len = new_size;
             PseudoTcpFifo.SetCapacity(priv.sbuf, new_size);
         }
 
 
-        static void
-        resize_receive_buffer(PseudoTcpSocket self, guint32 new_size)
+        void ResizeReceiveBuffer(guint32 new_size)
         {
-            PseudoTcpSocketPrivate priv = self.priv;
             guint8 scale_factor = 0;
             gboolean result;
             gsize available_space;
@@ -2879,25 +2868,22 @@ namespace PseudoTcp
             priv.rcv_wnd = available_space;
         }
 
-        gint pseudo_tcp_socket_get_available_bytes()
+        gint GetAvailableBytes()
         {
 #warning this cast to gint was not in C code
             return (gint)PseudoTcpFifo.GetBuffered(priv.rbuf);
         }
 
-        bool
-        pseudo_tcp_socket_can_send(PseudoTcpSocket self)
+        bool CanSend()
         {
-            return (pseudo_tcp_socket_get_available_send_space(self) > 0);
+            return (GetAvailableSendSpace() > 0);
         }
 
-        gsize
-        pseudo_tcp_socket_get_available_send_space(PseudoTcpSocket self)
+        gsize GetAvailableSendSpace()
         {
-            PseudoTcpSocketPrivate priv = self.priv;
             gsize ret;
 
-            if (!pseudo_tcp_state_has_sent_fin(priv.state))
+            if (!PseudoTcpState.HasSentFin(priv.state))
             {
                 ret = PseudoTcpFifo.GetWriteRemaining(priv.sbuf);
             }
@@ -2912,38 +2898,16 @@ namespace PseudoTcp
             return ret;
         }
 
-        /* State names are capitalised and formatted as in RFC 793. */
-        static string
-        pseudo_tcp_state_get_name(PseudoTcpState state)
+        void SetState(PseudoTcpState.Values new_state)
         {
-            switch (state)
-            {
-                case PseudoTcpState.TCP_LISTEN: return "LISTEN";
-                case PseudoTcpState.TCP_SYN_SENT: return "SYN-SENT";
-                case PseudoTcpState.TCP_SYN_RECEIVED: return "SYN-RECEIVED";
-                case PseudoTcpState.TCP_ESTABLISHED: return "ESTABLISHED";
-                case PseudoTcpState.TCP_CLOSED: return "CLOSED";
-                case PseudoTcpState.TCP_FIN_WAIT_1: return "FIN-WAIT-1";
-                case PseudoTcpState.TCP_FIN_WAIT_2: return "FIN-WAIT-2";
-                case PseudoTcpState.TCP_CLOSING: return "CLOSING";
-                case PseudoTcpState.TCP_TIME_WAIT: return "TIME-WAIT";
-                case PseudoTcpState.TCP_CLOSE_WAIT: return "CLOSE-WAIT";
-                case PseudoTcpState.TCP_LAST_ACK: return "LAST-ACK";
-                default: return "UNKNOWN";
-            }
-        }
-
-        void
-        set_state(PseudoTcpState new_state)
-        {
-            PseudoTcpState old_state = priv.state;
+            PseudoTcpState.Values old_state = priv.state;
 
             if (new_state == old_state)
                 return;
 
             DEBUG(this, PseudoTcpDebugLevel.PSEUDO_TCP_DEBUG_NORMAL, "State %s → %s.",
-                pseudo_tcp_state_get_name(old_state),
-                pseudo_tcp_state_get_name(new_state));
+                PseudoTcpState.GetName(old_state),
+                PseudoTcpState.GetName(new_state));
 
 #warning need to uncomment this code
             /* Check whether it’s a valid state transition. */
@@ -2981,37 +2945,33 @@ namespace PseudoTcp
             priv.state = new_state;
         }
 
-        void
-        set_state_established()
+        void SetStateEstablished()
         {
-            set_state(PseudoTcpState.TCP_ESTABLISHED);
+            SetState(PseudoTcpState.Values.TCP_ESTABLISHED);
 
-            adjustMTU();
+            AdjustMTU();
             if (priv.callbacks.PseudoTcpOpened != null)
                 priv.callbacks.PseudoTcpOpened(this, priv.callbacks.user_data);
         }
 
         /* (err == 0) means no error. */
-        void set_state_closed(guint32 err)
+        void SetStateClosed(guint32 err)
         {
-            set_state(PseudoTcpState.TCP_CLOSED);
+            SetState(PseudoTcpState.Values.TCP_CLOSED);
 
             /* Only call the callback if there was an error. */
             if (err != 0)
                 priv.callbacks.PseudoTcpClosed(this, err, priv.callbacks.user_data);
         }
 
-        bool pseudo_tcp_socket_is_closed()
+        bool IsClosed()
         {
-            return (priv.state == PseudoTcpState.TCP_CLOSED);
+            return (priv.state == PseudoTcpState.Values.TCP_CLOSED);
         }
 
-        bool
-        pseudo_tcp_socket_is_closed_remotely(PseudoTcpSocket self)
+        bool IsClosedRemotely()
         {
-            PseudoTcpSocketPrivate priv = self.priv;
-
-            return pseudo_tcp_state_has_received_fin(priv.state);
+            return PseudoTcpState.HasReceivedFin(priv.state);
         }
     }
 }
