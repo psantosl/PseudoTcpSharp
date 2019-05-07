@@ -1904,7 +1904,7 @@ namespace PseudoTcp
                         else
                         {
                             priv.rx_rttvar = (size_t)((3 * priv.rx_rttvar +
-                                Math.Abs((long)(rtt - priv.rx_srtt))) / 4);
+                                Math.Abs((long)((long)rtt - priv.rx_srtt))) / 4);
                             priv.rx_srtt = (7 * priv.rx_srtt + rtt) / 8;
                         }
                         priv.rx_rto = bound(MIN_RTO,
